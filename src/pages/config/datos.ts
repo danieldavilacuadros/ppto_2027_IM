@@ -9,20 +9,26 @@ export function useConfig() {
   const [accesos, setAccesos] = useState<Acceso[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [estados, setEstados] = useState<Record<string, EstadoCuenta>>({})
 
   const recargar = useCallback(async () => {
     try {
-      const [p, j, a] = await Promise.all([
+      const [p, j, a, e] = await Promise.all([
         sb().from('perfiles').select('*').order('nombre'),
         sb().from('jefaturas').select('*').order('sede').order('nombre'),
         // Supabase devuelve máximo 1000 filas por consulta: paginar
         leerTodo<Acceso>('accesos'),
+        sb().rpc('estado_cuentas'),
       ])
       const err = p.error || j.error
       if (err) setError(err.message)
       setPerfiles((p.data ?? []) as Perfil[])
       setJefaturas((j.data ?? []) as Jefatura[])
       setAccesos(a)
+      const est: Record<string, EstadoCuenta> = {}
+      ;((e.data ?? []) as { perfil_id: string; estado: EstadoCuenta['estado']; ultimo_ingreso: string | null }[])
+        .forEach((x) => { est[x.perfil_id] = { estado: x.estado, ultimo: x.ultimo_ingreso } })
+      setEstados(est)
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -31,7 +37,12 @@ export function useConfig() {
   }, [])
 
   useEffect(() => { void recargar() }, [recargar])
-  return { perfiles, setPerfiles, jefaturas, setJefaturas, accesos, setAccesos, cargando, error, setError, recargar }
+  return { perfiles, setPerfiles, jefaturas, setJefaturas, accesos, setAccesos, estados, cargando, error, setError, recargar }
+}
+
+export interface EstadoCuenta {
+  estado: 'sin_invitar' | 'invitado' | 'activo'
+  ultimo: string | null
 }
 
 async function leerTodo<T>(tabla: string): Promise<T[]> {
