@@ -28,11 +28,22 @@ export function SesionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!supabase) { setCargando(false); return }
-    supabase.auth.getSession().then(async ({ data }) => {
+    const sbc = supabase
+    ;(async () => {
+      // Los correos de invitación de Supabase vuelven con #access_token=…&refresh_token=… en la URL.
+      // Con el HashRouter ese fragmento no se procesa solo: se toma aquí y se limpia la URL.
+      const h = window.location.hash
+      if (h.includes('access_token=') || h.includes('error_description=')) {
+        const p = new URLSearchParams(h.replace(/^#\/?/, ''))
+        const at = p.get('access_token'), rt = p.get('refresh_token')
+        if (at && rt) await sbc.auth.setSession({ access_token: at, refresh_token: rt })
+        window.history.replaceState(null, '', window.location.pathname + window.location.search + '#/')
+      }
+      const { data } = await sbc.auth.getSession()
       setSession(data.session)
       await cargarPerfil(data.session)
       setCargando(false)
-    })
+    })()
     const { data: sub } = supabase.auth.onAuthStateChange((_evento, s) => {
       setSession(s)
       // fuera del callback para no bloquear el cliente de Auth
