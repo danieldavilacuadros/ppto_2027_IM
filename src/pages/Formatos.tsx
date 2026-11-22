@@ -3,6 +3,7 @@ import { sb } from '../lib/supabase'
 import { useCatalogo } from '../lib/catalogo'
 import { usePermisos } from '../lib/permisos'
 import Hoja, { entero, money } from '../components/Hoja'
+import { VerComoSelector } from '../components/VerComo'
 import { FORMATOS, enlacesHacia001, sumaMarcasA, sumaMarcasB, type Datos, type FormatoDef } from '../formatos/registro'
 
 const ANIO = 2027
@@ -47,7 +48,9 @@ export default function Formatos() {
   const marcaOk = hoja.alcance === 'marca' ? (marcas.includes(marca) ? marca : marcas[0] ?? '') : ''
   const alcance = hoja.alcance === 'marca' ? marcaOk : hoja.alcance === 'sede' ? '*' : hoja.alcance
   const sedeClave = hoja.alcance === 'marca' || hoja.alcance === 'sede' ? sedeOk : '*'
-  const puedeEditar = !!sedeOk && (hoja.alcance !== 'marca' || !!marcaOk) && perm.editar(fmt.linea, sedeClave, alcance)
+  const hayHoja = !!sedeOk && (hoja.alcance !== 'marca' || !!marcaOk)
+  const puedeEditar = hayHoja && perm.editar(fmt.linea, sedeClave, alcance)
+  const podriaEditar = hayHoja && perm.podriaEditar(fmt.linea, sedeClave, alcance)
 
   // ── check IF&E
   useEffect(() => {
@@ -141,6 +144,7 @@ export default function Formatos() {
       </nav>
 
       <div className="ptool">
+        <VerComoSelector />
         {fmt.hojas.length > 1 && (
           <div className="ctx"><span>Hoja</span>
             <div className="seg lin">{fmt.hojas.map((h) => (
@@ -164,8 +168,8 @@ export default function Formatos() {
         )}
         <div className="ctx"><span>Check IF&amp;E</span>
           <div className="seg dos">
-            <input type="radio" id="ife-i" name="ife" checked={ife} disabled={!perm.esAdmin} onChange={() => void cambiarIfe(true)} /><label htmlFor="ife-i">Integrado</label>
-            <input type="radio" id="ife-n" name="ife" checked={!ife} disabled={!perm.esAdmin} onChange={() => void cambiarIfe(false)} /><label htmlFor="ife-n">Independiente</label>
+            <input type="radio" id="ife-i" name="ife" checked={ife} disabled={!perm.esAdmin || perm.previa} onChange={() => void cambiarIfe(true)} /><label htmlFor="ife-i">Integrado</label>
+            <input type="radio" id="ife-n" name="ife" checked={!ife} disabled={!perm.esAdmin || perm.previa} onChange={() => void cambiarIfe(false)} /><label htmlFor="ife-n">Independiente</label>
           </div>
         </div>
       </div>
@@ -173,7 +177,9 @@ export default function Formatos() {
       <p className="muted">{hoja.descripcion}</p>
 
       {!opciones ? <p className="muted">Cargando…</p> : opciones.sedes.length === 0 ? (
-        <div className="card"><p className="muted">No tienes asignada ninguna hoja de este tipo. Si crees que deberías tenerla, consulta con administración.</p></div>
+        <div className="card"><p className="muted">{perm.previa
+          ? `${perm.verComo?.nombre || 'Este usuario'} no tiene asignada ninguna hoja de este tipo: no la vería.`
+          : 'No tienes asignada ninguna hoja de este tipo. Si crees que deberías tenerla, consulta con administración.'}</p></div>
       ) : !datos || !cols ? <p className="muted">Cargando la hoja…</p> : (
         <>
           <div className="kpis">
@@ -184,7 +190,9 @@ export default function Formatos() {
             ))}
           </div>
           <div className="barra-hoja">
-            <span className={'estado ' + estado}>{puedeEditar ? ESTADO[estado] : 'Solo lectura: puedes ver esta hoja, pero no editarla'}</span>
+            <span className={'estado ' + (perm.previa ? (podriaEditar ? 'guardado' : '') : estado)}>{perm.previa
+              ? `Vista de ${perm.verComo?.nombre || 'usuario'}: ${podriaEditar ? 'podría llenar esta hoja' : 'solo vería esta hoja'}`
+              : puedeEditar ? ESTADO[estado] : 'Solo lectura: puedes ver esta hoja, pero no editarla'}</span>
             {nota && <span className="muted small">{nota}</span>}
             <div className="seg lvl" role="radiogroup" aria-label="Nivel de detalle">
               {([['3', 'Todas las filas'], ['2', 'Subtotales'], ['1', 'Totales']] as const).map(([v, n]) => (

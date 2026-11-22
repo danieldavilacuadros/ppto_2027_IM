@@ -2,20 +2,12 @@ import { useEffect, useState } from 'react'
 import { sb } from '../lib/supabase'
 import { useSesion } from '../lib/sesion'
 import { useCatalogo } from '../lib/catalogo'
-import type { Acceso, Jefatura, Perfil } from '../lib/tipos'
+import type { Acceso, Jefatura } from '../lib/tipos'
+import { VerComoSelector } from '../components/VerComo'
 
 /** Resumen de lo que ve y edita el usuario conectado; administración puede «ver como» otro usuario. */
 export default function Inicio() {
-  const { perfil, esAdmin } = useSesion()
-  const [usuarios, setUsuarios] = useState<Perfil[]>([])
-  const [verComo, setVerComo] = useState<string>(() => sessionStorage.getItem('ppto-ver-como') ?? '')
-
-  useEffect(() => {
-    if (!esAdmin) return
-    sb().from('perfiles').select('*').eq('rol', 'usuario').order('nombre').then(({ data }) => setUsuarios((data ?? []) as Perfil[]))
-  }, [esAdmin])
-
-  const elegido = usuarios.find((u) => u.id === verComo) ?? null
+  const { perfil, esAdmin, verComo: elegido } = useSesion()
   const mostrado = esAdmin ? elegido : perfil
 
   return (
@@ -30,13 +22,10 @@ export default function Inicio() {
 
       {esAdmin && (
         <div className="card vercomo">
-          <label className="ctx">Ver como
-            <select className="cin borde" value={verComo} onChange={(e) => { setVerComo(e.target.value); sessionStorage.setItem('ppto-ver-como', e.target.value) }}>
-              <option value="">Elige un usuario…</option>
-              {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nombre || u.email}{u.cargo ? ' · ' + u.cargo : ''}</option>)}
-            </select>
-          </label>
-          {elegido && <p className="muted small">Vista de prueba: así verá su inicio {elegido.nombre || elegido.email}. No se le envía nada.</p>}
+          <VerComoSelector />
+          <p className="muted small">{elegido
+            ? `Vista de prueba: así verá su inicio ${elegido.nombre || elegido.email}. También aplica en Formatos.`
+            : 'Elige un usuario para ver su inicio y sus hojas tal como las verá él.'}</p>
         </div>
       )}
 

@@ -11,6 +11,11 @@ interface Ctx {
   esAdminTotal: boolean
   salir: () => Promise<void>
   recargarPerfil: () => Promise<void>
+  /** Administración: usuarios que se pueden elegir en «Ver como» */
+  usuarios: Perfil[]
+  /** Administración: usuario cuya vista se está revisando (null = la propia) */
+  verComo: Perfil | null
+  setVerComo: (id: string) => void
 }
 
 const SesionCtx = createContext<Ctx | null>(null)
@@ -53,12 +58,24 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const rol = perfil?.activo ? perfil.rol : null
+  const esAdmin = rol === 'administrador' || rol === 'subadministrador'
+
+  // «Ver como»: solo administración; se recuerda durante la sesión del navegador
+  const [usuarios, setUsuarios] = useState<Perfil[]>([])
+  const [verComoId, setVerComoId] = useState(() => { try { return sessionStorage.getItem('ppto-ver-como') ?? '' } catch { return '' } })
+  useEffect(() => {
+    if (!supabase || !esAdmin) { setUsuarios([]); return }
+    supabase.from('perfiles').select('*').eq('rol', 'usuario').order('nombre').then(({ data }) => setUsuarios((data ?? []) as Perfil[]))
+  }, [esAdmin, perfil?.id])
+  const verComo = esAdmin ? usuarios.find((u) => u.id === verComoId) ?? null : null
+
   const value: Ctx = {
-    cargando, session, perfil,
-    esAdmin: rol === 'administrador' || rol === 'subadministrador',
+    cargando, session, perfil, esAdmin,
     esAdminTotal: rol === 'administrador',
-    salir: async () => { await supabase?.auth.signOut(); setPerfil(null) },
+    salir: async () => { try { sessionStorage.removeItem('ppto-ver-como') } catch { /* nada */ } setVerComoId(''); await supabase?.auth.signOut(); setPerfil(null) },
     recargarPerfil: () => cargarPerfil(session),
+    usuarios, verComo,
+    setVerComo: (id) => { setVerComoId(id); try { sessionStorage.setItem('ppto-ver-como', id) } catch { /* nada */ } },
   }
   return <SesionCtx.Provider value={value}>{children}</SesionCtx.Provider>
 }

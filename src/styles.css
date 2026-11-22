@@ -156,6 +156,8 @@ tr.off td:not(.c-rub):not(.c-sup){opacity:.35}
 .inp.m + .u{font-size:10px;color:var(--muted);margin-left:2px}
 table.sheet[data-lvl="2"] tr[data-l="3"],table.sheet[data-lvl="1"] tr[data-l="2"],table.sheet[data-lvl="1"] tr[data-l="3"]{display:none}
 
+.aviso-vercomo{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 16px;padding:9px 16px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;border-bottom:1px solid color-mix(in srgb,var(--warn) 30%,transparent);position:sticky;top:57px;z-index:9}
+.aviso-vercomo b{color:var(--ink)}
 .agregar{display:flex;flex-direction:column;gap:10px}
 .agregar .fila{display:grid;grid-template-columns:1.2fr 1fr 1.3fr auto;gap:8px}
 .vercomo{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 18px}

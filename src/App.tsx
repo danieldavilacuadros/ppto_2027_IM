@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Inicio from './pages/Inicio'
 import Configuracion from './pages/config/Configuracion'
 import Formatos from './pages/Formatos'
+import { VerComoAviso } from './components/VerComo'
 
 export default function App() {
   const { cargando, session, perfil, esAdmin, salir } = useSesion()
@@ -41,6 +42,7 @@ export default function App() {
           <button className="btn sm" onClick={() => void salir()}>Salir</button>
         </div>
       </header>
+      <VerComoAviso />
       <main className="wrap">
         <Routes>
           <Route path="/" element={<Inicio />} />
