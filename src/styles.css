@@ -34,6 +34,7 @@ code{font-family:var(--f-mono);font-size:.9em}
 .muted{color:var(--muted)} .small{font-size:12.5px} .mono{font-family:var(--f-mono);font-size:10.5px} .d-block{display:block} .nowrap{white-space:nowrap}
 .eyebrow{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .wrap{max-width:var(--ancho-max);margin:0 auto;padding:24px 16px 64px}
+.wrap.ancho{max-width:none;padding-inline:24px}
 .stack{display:flex;flex-direction:column;gap:24px}
 .centro{min-height:100vh;display:grid;place-items:center;padding:16px}
 .card{background:var(--card);border:1px solid var(--gris-2);border-radius:var(--radio);padding:20px 24px;box-shadow:var(--shadow)}

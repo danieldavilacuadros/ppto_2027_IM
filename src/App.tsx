@@ -1,4 +1,4 @@
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import { useSesion } from './lib/sesion'
 import Login from './pages/Login'
@@ -9,6 +9,8 @@ import { VerComoAviso } from './components/VerComo'
 
 export default function App() {
   const { cargando, session, perfil, esAdmin, salir } = useSesion()
+  // Formatos usa todo el ancho de la pantalla para que la hoja muestre más meses
+  const ancho = useLocation().pathname.startsWith('/formatos')
 
   if (!supabase) return <SinConfiguracion />
   if (cargando) return <div className="centro"><p className="muted">Cargando…</p></div>
@@ -43,7 +45,7 @@ export default function App() {
         </div>
       </header>
       <VerComoAviso />
-      <main className="wrap">
+      <main className={'wrap' + (ancho ? ' ancho' : '')}>
         <Routes>
           <Route path="/" element={<Inicio />} />
           <Route path="/formatos" element={<Formatos />} />
