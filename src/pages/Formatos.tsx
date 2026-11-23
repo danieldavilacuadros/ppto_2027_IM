@@ -4,7 +4,8 @@ import { useCatalogo } from '../lib/catalogo'
 import { usePermisos } from '../lib/permisos'
 import Hoja, { entero, money } from '../components/Hoja'
 import { VerComoSelector } from '../components/VerComo'
-import { FORMATOS, enlacesHacia001, sumaMarcasA, sumaMarcasB, type Datos, type FormatoDef } from '../formatos/registro'
+import { FORMATOS, enlacesHacia001, sumaMarcasA, sumaMarcasB, type Col, type Datos, type FormatoDef } from '../formatos/registro'
+import { filas001DesdeHistorico, promedioMensual } from '../formatos/historico'
 
 const ANIO = 2027
 type Estado = 'ejemplo' | 'guardado' | 'guardando' | 'pendiente' | 'error'
@@ -67,18 +68,32 @@ export default function Formatos() {
   const [estado, setEstado] = useState<Estado>('ejemplo')
   const [enlazado, setEnlazado] = useState<Record<string, number[]>>({})
   const [nota, setNota] = useState('')
+  // histórico real 2026 (promedio mensual) de esta hoja, si ya está cargado
+  const [hist, setHist] = useState<{ col: Col; meses: number; corte: string } | null>(null)
   const clave = `${fmt.id}|${hoja.id}|${sedeClave}|${alcance}`
   const claveRef = useRef(clave)
 
   const cargar = useCallback(async () => {
     claveRef.current = clave
-    setDatos(null); setEnlazado({}); setNota('')
+    setDatos(null); setEnlazado({}); setNota(''); setHist(null)
     if (!sedeOk || (hoja.alcance === 'marca' && !marcaOk)) return
     const { data } = await sb().from('hojas').select('datos')
       .match({ formato: fmt.id, hoja: hoja.id, sede: sedeClave, alcance, anio: ANIO }).maybeSingle()
     const base = fmt.ejemplo(hoja.id)
     const d = completar(base, (data?.datos as Partial<Datos>) ?? null)
     let enl: Record<string, number[]> = {}, nt = ''
+    let hs26: { col: Col; meses: number; corte: string } | null = null
+    if (fmt.id === 'FU-001' && hoja.alcance === 'marca') {
+      const [{ data: h }, { data: aj }] = await Promise.all([
+        sb().from('historico').select('cuenta, monto').match({ formato: 'FU-001', sede: sedeOk, alcance: marcaOk, anio: 2026 }).range(0, 4999),
+        sb().from('ajustes').select('valor').eq('clave', 'historico_2026').maybeSingle(),
+      ])
+      const info = (aj?.valor ?? {}) as { meses?: number; corte?: string }
+      if (h && h.length) {
+        const meses = info.meses || 8
+        hs26 = { col: filas001DesdeHistorico(promedioMensual(h as { cuenta: string; monto: number }[], meses)), meses, corte: info.corte || '' }
+      }
+    }
     if (fmt.id === 'FU-001') {
       const [a, b] = await Promise.all(['FU-001-A', 'FU-001-B'].map((f) =>
         sb().from('hojas').select('datos').match({ formato: f, hoja: 'marca', sede: sedeOk, alcance: marcaOk, anio: ANIO }).maybeSingle()))
@@ -97,7 +112,7 @@ export default function Formatos() {
       else nt = 'Marketing de marcas: valores de ejemplo (aún no hay hojas guardadas)'
     }
     if (claveRef.current !== clave) return
-    setDatos(d); setEnlazado(enl); setNota(nt)
+    setDatos(d); setEnlazado(enl); setNota(nt); setHist(hs26)
     setEstado(data ? 'guardado' : 'ejemplo')
   }, [clave, fmt, hoja, sedeOk, marcaOk, sedeClave, alcance, ife])
 
@@ -121,7 +136,12 @@ export default function Formatos() {
   }
 
   const conEnlaces: Datos | null = datos ? { ...datos, M: { ...datos.M, ...enlazado } } : null
-  const cols = useMemo(() => (conEnlaces ? fmt.calcular(hoja.id, conEnlaces, ife) : null), [conEnlaces, fmt, hoja, ife])
+  const cols = useMemo(() => {
+    if (!conEnlaces) return null
+    const c = fmt.calcular(hoja.id, conEnlaces, ife)
+    if (hist) c[13] = hist.col // la columna histórica sale del contable, no del ejemplo
+    return c
+  }, [conEnlaces, fmt, hoja, ife, hist])
   const vinculadas = useMemo(() => new Set(Object.keys(enlazado)), [enlazado])
 
   const ESTADO: Record<Estado, string> = {
@@ -200,12 +220,16 @@ export default function Formatos() {
               ))}
             </div>
           </div>
-          <Hoja fmt={fmt} hoja={hoja.id} datos={conEnlaces!} cols={cols} ife={ife} editable={puedeEditar} nivel={nivel} vinculadas={vinculadas} onCambio={(d) => {
+          <Hoja fmt={fmt} hoja={hoja.id} datos={conEnlaces!} cols={cols} ife={ife} editable={puedeEditar} nivel={nivel} vinculadas={vinculadas}
+            histReal={hist ? `real ene–${['', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic'][hist.meses] ?? ''}` : null} onCambio={(d) => {
             // lo enlazado no se guarda en esta hoja
             const M = { ...d.M }; Object.keys(enlazado).forEach((k) => { M[k] = datos.M[k] })
             cambiar({ ...d, M })
           }} />
-          <p className="muted small">El número gris al lado de cada rubro es su fila en el Excel. La columna «Histórico 2026» la llenará el histórico de cada formato.</p>
+          <p className="muted small">El número gris al lado de cada rubro es su fila en el Excel. {hist
+            ? `La columna «Histórico 2026» es el promedio mensual real del contable (${hist.meses} meses). Headcount, test drives e IF&E todavía no tienen histórico; alquileres, impuestos, seguros, honorarios y electricidad van al consolidado por sede.`
+            : fmt.id === 'FU-001' ? 'Esta marca no tiene histórico contable 2026 en esta sede: la columna «Histórico 2026» muestra el ejemplo.'
+            : 'La columna «Histórico 2026» la llenará el histórico de cada formato.'}</p>
         </>
       )}
     </section>

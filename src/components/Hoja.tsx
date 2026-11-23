@@ -22,11 +22,13 @@ interface Props {
   nivel: '1' | '2' | '3'
   /** claves de M cuyo valor llega de otro formato (no se editan aquí) */
   vinculadas?: Set<string>
+  /** si la columna histórica viene del contable: texto para el encabezado (y no se edita) */
+  histReal?: string | null
   onCambio: (d: Datos) => void
 }
 
 /** Tabla de llenado de una hoja: rubro, supuesto, 12 meses, año e histórico. */
-export default function Hoja({ fmt, hoja, datos, cols, ife, editable, nivel, vinculadas, onCambio }: Props) {
+export default function Hoja({ fmt, hoja, datos, cols, ife, editable, nivel, vinculadas, histReal, onCambio }: Props) {
   const filas = useMemo(() => fmt.filas(hoja), [fmt, hoja])
 
   const setP = (k: string, f: string, txt: string) => {
@@ -44,6 +46,7 @@ export default function Hoja({ fmt, hoja, datos, cols, ife, editable, nivel, vin
     const [id, , , , , ex = {}] = f
     const v = c[id]
     if (v == null) return ''
+    if (!isFinite(v)) return '–'
     if (ex.pct) return pct(v)
     if (ex.int) return entero(v)
     if (ex.dec) return ex.dec === 2 ? nf2.format(v) : nf1.format(v)
@@ -56,7 +59,7 @@ export default function Hoja({ fmt, hoja, datos, cols, ife, editable, nivel, vin
         <thead>
           <tr><th className="c-rub">Rubro</th><th className="c-sup">Supuesto</th>
             {MESES.map((m) => <th key={m}>{m}</th>)}
-            <th className="c-yr">2027</th><th className="c-hist">Histórico 2026<br />prom. mensual</th></tr>
+            <th className="c-yr">2027</th><th className="c-hist">Histórico 2026<br />prom. mensual{histReal && <><br /><small>{histReal}</small></>}</th></tr>
         </thead>
         <tbody>
           {filas.map((f, idx) => {
@@ -83,7 +86,7 @@ export default function Hoja({ fmt, hoja, datos, cols, ife, editable, nivel, vin
                   : <span className="fix">{supFijo(datos.P[sup.k] ?? 0, sup.f)}</span>) : null}</td>
                 {t === 'po' ? <td colSpan={14} /> : cols.map((c, ci) => {
                   const cc = ci === 12 ? 'c-yr' : ci === 13 ? 'c-hist' : ''
-                  const esIn = (t === 'in') && mk && ci !== 12 && !(ex.pct && ci === 13)
+                  const esIn = (t === 'in') && mk && ci !== 12 && !(ex.pct && ci === 13) && !(histReal && ci === 13)
                   if (esIn && editable && !vinc) {
                     const mi = ci === 13 ? 12 : ci
                     const raw = datos.M[mk!]?.[mi] ?? 0

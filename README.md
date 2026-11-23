@@ -14,3 +14,8 @@ y en Settings › Pages › Source: «GitHub Actions».
 
 ## Base de datos
 Ejecutar en orden los archivos de `supabase/migrations/` en el SQL Editor del proyecto de Supabase.
+
+## Histórico 2026
+La tabla `historico` (migración 004) guarda el Estado de Resultados contable por sede, marca, cuenta y mes, en dólares.
+Los datos **no van al repo** (es público): se cargan desde el SQL Editor. El ajuste `historico_2026` indica cuántos
+meses hay cargados (divisor del promedio mensual). Carga actual: enero–agosto 2026; se recarga con el cierre a noviembre.
