@@ -72,12 +72,14 @@ export default function Formatos() {
   const [nota, setNota] = useState('')
   // histórico real 2026 (promedio mensual) de esta hoja, si ya está cargado
   const [hist, setHist] = useState<{ col: Col; meses: number; corte: string } | null>(null)
+  // FU-001: hojas de FU-001-A y FU-001-B de la marca; su enlace se recalcula en vivo con las unidades y el ticket de FU-001
+  const [fuentes, setFuentes] = useState<{ a: Datos | null; b: Datos | null } | null>(null)
   const clave = `${fmt.id}|${hoja.id}|${sedeClave}|${alcance}`
   const claveRef = useRef(clave)
 
   const cargar = useCallback(async () => {
     claveRef.current = clave
-    setDatos(null); setEnlazado({}); setNota(''); setHist(null)
+    setDatos(null); setEnlazado({}); setNota(''); setHist(null); setFuentes(null)
     if (!sedeOk || (hoja.alcance === 'marca' && !marcaOk)) return
     const { data } = await sb().from('hojas').select('datos')
       .match({ formato: fmt.id, hoja: hoja.id, sede: sedeClave, alcance, anio: ANIO }).maybeSingle()
@@ -85,6 +87,7 @@ export default function Formatos() {
     const d = completar(base, (data?.datos as Partial<Datos>) ?? null)
     let enl: Record<string, number[]> = {}, nt = ''
     let hs26: { col: Col; meses: number; corte: string } | null = null
+    let fuentesCarga: { a: Datos | null; b: Datos | null } | null = null
     if (fmt.id === 'FU-001' && hoja.alcance === 'marca') {
       const [{ data: h }, { data: aj }] = await Promise.all([
         sb().from('historico').select('cuenta, monto').match({ formato: 'FU-001', sede: sedeOk, alcance: marcaOk, anio: 2026 }).range(0, 4999),
@@ -101,7 +104,7 @@ export default function Formatos() {
         sb().from('hojas').select('datos').match({ formato: f, hoja: 'marca', sede: sedeOk, alcance: marcaOk, anio: ANIO }).maybeSingle()))
       const da = a.data ? completar(FORMATOS[1].ejemplo('marca'), a.data.datos as Partial<Datos>) : null
       const db = b.data ? completar(FORMATOS[2].ejemplo('marca'), b.data.datos as Partial<Datos>) : null
-      enl = enlacesHacia001(da, db, ife)
+      fuentesCarga = { a: da, b: db }
       nt = [da ? 'IF&E llega de FU-001-A' : 'IF&E: valores de ejemplo (aún no hay hoja FU-001-A de esta marca)',
             db ? 'marketing llega de FU-001-B' : 'marketing: valores de ejemplo (aún no hay hoja FU-001-B)'].join(' · ')
     } else if (fmt.id === 'FU-001-A' && hoja.id === 'marca') {
@@ -114,8 +117,17 @@ export default function Formatos() {
         nt = 'Unidades y ticket llegan de FU-001 de esta marca'
       } else nt = 'Unidades: valores de ejemplo (aún no hay hoja FU-001 de esta marca)'
     } else if (fmt.id === 'FU-001-A' && hoja.id === 'sede') {
-      const { data: hs } = await sb().from('hojas').select('datos').match({ formato: 'FU-001-A', hoja: 'marca', sede: sedeOk, anio: ANIO })
-      if (hs && hs.length) { d.S = sumaMarcasA(hs.map((h) => completar(FORMATOS[1].ejemplo('marca'), h.datos as Partial<Datos>)), ife); nt = `Parte comercial: suma de ${hs.length} hoja${hs.length === 1 ? '' : 's'} de marca guardada${hs.length === 1 ? '' : 's'}` }
+      const [{ data: hs }, { data: us }] = await Promise.all([
+        sb().from('hojas').select('alcance, datos').match({ formato: 'FU-001-A', hoja: 'marca', sede: sedeOk, anio: ANIO }),
+        sb().from('hojas').select('alcance, datos').match({ formato: 'FU-001', hoja: 'marca', sede: sedeOk, anio: ANIO }),
+      ])
+      // cada marca con las unidades y el ticket vigentes de su FU-001
+      const u001 = new Map((us ?? []).map((x) => [x.alcance as string, x.datos as Partial<Datos>]))
+      const conUnidades = (alc: string, dd: Datos): Datos => {
+        const f = u001.get(alc); if (!f?.M?.units) return dd
+        return { ...dd, P: { ...dd.P, ticket: f.P?.ticket ?? dd.P.ticket }, M: { ...dd.M, units: [...f.M.units.slice(0, 12), dd.M.units?.[12] ?? 0] } }
+      }
+      if (hs && hs.length) { d.S = sumaMarcasA(hs.map((h) => conUnidades(h.alcance as string, completar(FORMATOS[1].ejemplo('marca'), h.datos as Partial<Datos>))), ife); nt = `Parte comercial: suma de ${hs.length} hoja${hs.length === 1 ? '' : 's'} de marca guardada${hs.length === 1 ? '' : 's'}` }
       else nt = 'Parte comercial: valores de ejemplo (aún no hay hojas de marca guardadas en esta sede)'
     } else if (fmt.id === 'FU-001-B' && hoja.id === 'total') {
       const { data: hs } = await sb().from('hojas').select('datos').match({ formato: 'FU-001-B', hoja: 'marca', anio: ANIO })
@@ -123,7 +135,7 @@ export default function Formatos() {
       else nt = 'Marketing de marcas: valores de ejemplo (aún no hay hojas guardadas)'
     }
     if (claveRef.current !== clave) return
-    setDatos(d); setDatosDe(clave); setEnlazado(enl); setNota(nt); setHist(hs26)
+    setDatos(d); setDatosDe(clave); setEnlazado(enl); setNota(nt); setHist(hs26); setFuentes(fuentesCarga)
     setEstado(data ? 'guardado' : 'ejemplo')
   }, [clave, fmt, hoja, sedeOk, marcaOk, sedeClave, alcance, ife])
 
@@ -146,14 +158,20 @@ export default function Formatos() {
     }, 700)
   }
 
-  const conEnlaces: Datos | null = datos && datosDe === clave ? { ...datos, M: { ...datos.M, ...enlazado } } : null
+  const enlaces = useMemo(() => {
+    if (!fuentes || !datos) return enlazado
+    const a = fuentes.a ? { ...fuentes.a, P: { ...fuentes.a.P, ticket: datos.P.ticket },
+      M: { ...fuentes.a.M, units: [...(datos.M.units ?? []).slice(0, 12), fuentes.a.M.units?.[12] ?? 0] } } : null
+    return enlacesHacia001(a, fuentes.b, ife)
+  }, [fuentes, datos, enlazado, ife])
+  const conEnlaces: Datos | null = datos && datosDe === clave ? { ...datos, M: { ...datos.M, ...enlaces } } : null
   const cols = useMemo(() => {
     if (!conEnlaces) return null
     const c = fmt.calcular(hoja.id, conEnlaces, ife)
     if (hist) c[13] = hist.col // la columna histórica sale del contable, no del ejemplo
     return c
   }, [conEnlaces, fmt, hoja, ife, hist])
-  const vinculadas = useMemo(() => new Set(Object.keys(enlazado)), [enlazado])
+  const vinculadas = useMemo(() => new Set(Object.keys(enlaces)), [enlaces])
 
   const ESTADO: Record<Estado, string> = {
     ejemplo: 'Sin guardar todavía: se muestran los valores de ejemplo del Excel', guardado: 'Guardado',
@@ -234,7 +252,7 @@ export default function Formatos() {
           <Hoja fmt={fmt} hoja={hoja.id} datos={conEnlaces!} cols={cols} ife={ife} editable={puedeEditar} nivel={nivel} vinculadas={vinculadas}
             histReal={hist ? `real ene–${['', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic'][hist.meses] ?? ''}` : null} onCambio={(d) => {
             // lo enlazado no se guarda en esta hoja
-            const M = { ...d.M }; Object.keys(enlazado).forEach((k) => { M[k] = datos.M[k] })
+            const M = { ...d.M }; Object.keys(enlaces).forEach((k) => { M[k] = datos.M[k] })
             cambiar({ ...d, M })
           }} />
           <p className="muted small">El número gris al lado de cada rubro es su fila en el Excel. {hist
