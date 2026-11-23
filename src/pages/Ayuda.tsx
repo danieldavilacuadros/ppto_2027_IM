@@ -67,7 +67,7 @@ export default function Ayuda() {
         <ol className="ay-lista">
           <li>Abre <b>danieldavilacuadros.github.io/ppto_2027_IM</b> en <b>Chrome</b> o Edge, mejor en computadora: la tabla es ancha.</li>
           <li>Deja marcado <b>Con contraseña</b>, escribe tu <b>correo de la empresa</b> y la <b>contraseña inicial</b> que te envió administración. Pulsa <i>Entrar</i>.</li>
-          <li>La primera vez, <b>cambia tu contraseña</b>: haz clic en <b>tu nombre</b> (arriba a la derecha) → escribe una nueva dos veces → <i>Guardar mi nueva contraseña</i>. Mínimo 8 caracteres.</li>
+          <li>La primera vez, la app te pide <b>crear tu propia contraseña</b> antes de seguir: escríbela dos veces y pulsa <i>Guardar mi nueva contraseña</i> (mínimo 8 caracteres). Si luego quieres cambiarla otra vez, haz clic en <b>tu nombre</b>, arriba a la derecha.</li>
           <li>Llegas a <b>Inicio</b>: te saluda y te muestra tus jefaturas y qué líneas <b>llenas</b> o <b>solo ves</b>.</li>
         </ol>
         <div className="ay-dos">

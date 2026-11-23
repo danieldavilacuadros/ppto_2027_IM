@@ -3,7 +3,7 @@ import { sb } from '../lib/supabase'
 import { useSesion } from '../lib/sesion'
 
 /** Cambiar la contraseña propia (la inicial la entrega administración). */
-export default function Cuenta() {
+export default function Cuenta({ obligatorio = false }: { obligatorio?: boolean }) {
   const { session, perfil } = useSesion()
   const [clave, setClave] = useState('')
   const [repite, setRepite] = useState('')
@@ -25,11 +25,13 @@ export default function Cuenta() {
   return (
     <section className="stack" style={{ maxWidth: 520 }}>
       <div>
-        <p className="eyebrow">Mi cuenta</p>
-        <h1>Cambiar mi contraseña</h1>
+        <p className="eyebrow">{obligatorio ? 'Primer ingreso · Presupuesto 2027' : 'Mi cuenta'}</p>
+        <h1>{obligatorio ? '¡Bienvenido! Primero, tu contraseña' : 'Cambiar mi contraseña'}</h1>
         <p className="muted">{perfil?.nombre || perfil?.email} · {perfil?.email}</p>
       </div>
-      {!propia && <p className="ay-nota ojo"><b>Ojo</b><span>Todavía usas la contraseña inicial que te dio administración. Cámbiala por una que solo tú conozcas.</span></p>}
+      {!propia && <p className="ay-nota ojo"><b>Ojo</b><span>{obligatorio
+        ? 'Entraste con la contraseña inicial. Antes de seguir, crea una que solo tú conozcas: así nadie más puede entrar con tu usuario.'
+        : 'Todavía usas la contraseña inicial que te dio administración. Cámbiala por una que solo tú conozcas.'}</span></p>}
       <form className="card stack" style={{ gap: 14 }} onSubmit={guardar}>
         <label className="campo">Nueva contraseña
           <input type="password" autoComplete="new-password" value={clave} onChange={(e) => setClave(e.target.value)} required />

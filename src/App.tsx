@@ -32,6 +32,17 @@ export default function App() {
     </div></div>
   )
 
+  // Primer ingreso: quien entra con la contraseña inicial debe cambiarla antes de usar la app
+  if (!esAdmin && !session.user.user_metadata?.clave_propia) return (
+    <div className="app">
+      <header className="top">
+        <div className="marca"><b>Presupuesto 2027</b><span>Incamotors</span></div>
+        <div className="quien"><span>{perfil.nombre || perfil.email}</span><button className="btn sm" onClick={() => void salir()}>Salir</button></div>
+      </header>
+      <main className="wrap"><Cuenta obligatorio /></main>
+    </div>
+  )
+
   return (
     <div className="app">
       <header className="top">
