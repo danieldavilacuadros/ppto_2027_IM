@@ -185,6 +185,9 @@ export default function Formatos() {
           <h1>Formatos</h1>
           <p className="muted">Solo se llenan las celdas amarillas; todo lo demás se calcula. Ves solo las sedes y marcas que tienes asignadas.</p>
         </div>
+        <div className="moneda" role="note" aria-label="Moneda de trabajo: dólares americanos, sin IGV">
+          <span>Moneda</span><b>US$</b><em>Dólares americanos · sin IGV</em>
+        </div>
       </div>
 
       <nav className="subtabs" aria-label="Formato">

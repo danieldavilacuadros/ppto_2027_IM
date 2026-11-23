@@ -215,7 +215,7 @@ export default function Ayuda() {
             <tr><td><b>Fondos colectivos</b></td><td>Ticket × 90 % financiado × 0.9 % = 130.89</td><td>1.2 % → 3 × 130.89 = <b>393</b></td></tr>
             <tr><td><b>GPS</b></td><td>Venta 300 / 1.18 − costo 213 / 1.18 = 73.73</td><td>37.3 % → 98 × 73.73 = <b>7,226</b></td></tr>
             <tr><td><b>MOK</b></td><td>Venta 140 / 1.18 − costo 70 / 1.18 = 59.32</td><td>25.5 % → 67 × 59.32 = <b>3,975</b></td></tr>
-            <tr><td><b>GLP</b></td><td>50 / 1.18 = 42.37 · solo Hyundai y Geely, al 5 %</td><td>5 % → 13 × 42.37 = <b>551</b></td></tr>
+            <tr><td><b>GLP</b></td><td>50 / 1.18 = 42.37 · solo hay meta en Arequipa (Hyundai y Geely, al 5 %)</td><td>5 % → 13 × 42.37 = <b>551</b></td></tr>
             <tr><td><b>Accesorios</b></td><td>US$ por unidad × unidades; margen de 20 %</td><td>189 × 263 = 49,707 → margen <b>9,941</b></td></tr>
           </tbody>
         </table>
