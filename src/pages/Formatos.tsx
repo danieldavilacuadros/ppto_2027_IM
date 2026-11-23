@@ -104,6 +104,15 @@ export default function Formatos() {
       enl = enlacesHacia001(da, db, ife)
       nt = [da ? 'IF&E llega de FU-001-A' : 'IF&E: valores de ejemplo (aún no hay hoja FU-001-A de esta marca)',
             db ? 'marketing llega de FU-001-B' : 'marketing: valores de ejemplo (aún no hay hoja FU-001-B)'].join(' · ')
+    } else if (fmt.id === 'FU-001-A' && hoja.id === 'marca') {
+      // unidades y ticket llegan de FU-001 de la misma sede y marca
+      const { data: u } = await sb().from('hojas').select('datos').match({ formato: 'FU-001', hoja: 'marca', sede: sedeOk, alcance: marcaOk, anio: ANIO }).maybeSingle()
+      const du = u?.datos as Partial<Datos> | undefined
+      if (du?.M?.units) {
+        enl = { units: [...du.M.units.slice(0, 12), d.M.units?.[12] ?? 0] }
+        if (du.P?.ticket) d.P = { ...d.P, ticket: du.P.ticket }
+        nt = 'Unidades y ticket llegan de FU-001 de esta marca'
+      } else nt = 'Unidades: valores de ejemplo (aún no hay hoja FU-001 de esta marca)'
     } else if (fmt.id === 'FU-001-A' && hoja.id === 'sede') {
       const { data: hs } = await sb().from('hojas').select('datos').match({ formato: 'FU-001-A', hoja: 'marca', sede: sedeOk, anio: ANIO })
       if (hs && hs.length) { d.S = sumaMarcasA(hs.map((h) => completar(FORMATOS[1].ejemplo('marca'), h.datos as Partial<Datos>)), ife); nt = `Parte comercial: suma de ${hs.length} hoja${hs.length === 1 ? '' : 's'} de marca guardada${hs.length === 1 ? '' : 's'}` }
