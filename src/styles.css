@@ -246,17 +246,17 @@ table.sheet[data-lvl="2"] tr[data-l="3"],table.sheet[data-lvl="1"] tr[data-l="2"
 .ay-regla b{color:var(--oro-claro)}
 .ay-amarillo{background:var(--ambar-f);color:var(--ambar-t);border:1px solid color-mix(in srgb,var(--ambar-t) 45%,transparent);border-radius:6px;padding:1px 7px;font-weight:700}
 .ay-nota{display:flex;gap:10px;align-items:baseline;padding:11px 14px;border-radius:12px;font-size:14px}
-.ay-nota b:first-child{flex:none;font:700 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:999px}
+.ay-nota>b{flex:none;font:700 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:999px}
 .ay-nota.tip{background:var(--verde-f);color:var(--verde-t)}
-.ay-nota.tip b:first-child{background:var(--verde-t);color:#fff}
+.ay-nota.tip>b{background:var(--verde-t);color:#fff}
 .ay-nota.ojo{background:var(--ambar-f);color:var(--ambar-t)}
-.ay-nota.ojo b:first-child{background:var(--ambar-t);color:#fff}
+.ay-nota.ojo>b{background:var(--ambar-t);color:#fff}
 .ay-dos{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;align-items:start}
 .ay-lista{padding-left:22px;display:flex;flex-direction:column;gap:7px}
 .ay-lista ul{padding-left:20px;margin-top:6px;display:flex;flex-direction:column;gap:4px}
 .ay-lista li::marker{color:var(--oro-texto);font-weight:700}
 .ay-ejemplo{padding:14px 16px;border-radius:12px;border-left:4px solid var(--oro);background:var(--ay-sub)}
-.ay-ejemplo b:first-child{display:block;font:700 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--oro-texto);margin-bottom:4px}
+.ay-ejemplo>b{display:block;font:700 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--oro-texto);margin-bottom:4px}
 .ay-m{display:inline-block;padding:3px 9px;border-radius:6px;font-size:12.5px;font-weight:600}
 .ay-m.amarillo{background:var(--ambar-f);color:var(--ink);border:1px solid color-mix(in srgb,var(--ambar-t) 45%,transparent)}
 .ay-m.sec{color:var(--oro-texto);font-family:var(--mono);font-size:11px;letter-spacing:.08em}

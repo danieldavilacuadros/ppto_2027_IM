@@ -25,8 +25,8 @@ function Seccion({ id, n, titulo, children }: { id: string; n: number; titulo: s
     </section>
   )
 }
-const Tip = ({ children }: { children: ReactNode }) => <p className="ay-nota tip"><b>Tip</b>{children}</p>
-const Ojo = ({ children }: { children: ReactNode }) => <p className="ay-nota ojo"><b>Ojo</b>{children}</p>
+const Tip = ({ children }: { children: ReactNode }) => <p className="ay-nota tip"><b>Tip</b><span>{children}</span></p>
+const Ojo = ({ children }: { children: ReactNode }) => <p className="ay-nota ojo"><b>Ojo</b><span>{children}</span></p>
 
 export default function Ayuda() {
   return (
