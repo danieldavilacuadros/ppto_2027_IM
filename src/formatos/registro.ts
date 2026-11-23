@@ -1,15 +1,16 @@
 // Registro de formatos: qué hojas tiene cada uno, sus valores de ejemplo, filas y cómo se calcula.
 import { XL, computeCol, FILAS as FILAS001 } from './fu001.js'
-import { XA, LEAF, columnsA, rowsA } from './fu001a.js'
+import { XA, LEAF, columnsA, rowsA, rowsTotalA, totalA, acumularA } from './fu001a.js'
 import { XB, columnsB, rowsB } from './fu001b.js'
 
 export type Col = Record<string, number>
-export type Datos = { P: Record<string, number>; M: Record<string, number[]>; S?: Record<string, number[]> }
+export type Datos = { P: Record<string, number>; M: Record<string, number[]>; S?: Record<string, number[]>; C?: Col[] }
 // [id, rubro, tipo, fila Excel, supuesto, extra]
 export type Sup = { k: string; f: 'pct' | 'num' | 'num1'; e?: number; note?: string }
 export type Extra = Record<string, unknown> & {
   m?: string; int?: number; dec?: number; pct?: number; ind?: number; src?: string; sum?: number
   ife?: number; cls?: string; inp?: number; onlyInd?: number; onlyInt?: number; l2?: number; link?: number; note?: string
+  sumTxt?: string; ctl?: number
 }
 export type Fila = [string, string, string, number?, (Sup | null)?, Extra?]
 
@@ -28,6 +29,10 @@ export interface FormatoDef {
   /** fila tipo 'p': valor a mostrar */
   pct: (f: Fila, c: Col) => number
   kpis: (hoja: string) => [string, string, 'money' | 'int' | 'pct'][]
+  /** hojas de solo lectura que se calculan sumando otras (no se guardan) */
+  calculada?: (hoja: string) => boolean
+  /** vista acumulada (enero hasta cada mes), para las hojas que la tienen */
+  acumular?: (hoja: string, cols: Col[]) => Col[] | null
 }
 
 const copia = <T,>(o: T): T => JSON.parse(JSON.stringify(o))
@@ -69,10 +74,13 @@ const FU001A: FormatoDef = {
     { id: 'marca', nombre: 'Por marca', alcance: 'marca', descripcion: 'Una hoja por cada marca en cada sede. Llega hasta el margen bruto; los gastos se cargan una sola vez en la hoja de la sede.' },
     { id: 'sede', nombre: 'Consolidado por sede', alcance: 'sede', descripcion: 'La parte comercial es la suma de las hojas de marca de la sede. Aquí se cargan todos los gastos de F&I de la sede y sale el margen de contribución.' },
     { id: 'corp', nombre: 'Corporativo', alcance: 'corp', descripcion: 'Hoja completa hasta el margen de contribución, sin sede ni marca. Todo el resultado va a FU-005-C.' },
+    { id: 'total', nombre: 'Total línea IF&E', alcance: 'total', descripcion: 'Toda la línea transversal: suma cada sede (sus marcas más sus gastos) y el Corporativo. Solo lectura; se recalcula con lo que llenan las demás hojas. Abajo, el cuadre: por sede y por marca se llega al mismo total.' },
   ],
-  ejemplo: (h) => copia((XA as Record<string, Datos>)[h]),
-  filas: (h) => rowsA(h) as Fila[],
-  calcular: (h, d, ife) => columnsA(h, d, ife) as unknown as Col[],
+  ejemplo: (h) => h === 'total' ? { P: {}, M: {} } : copia((XA as Record<string, Datos>)[h]),
+  filas: (h) => (h === 'total' ? rowsTotalA() : rowsA(h)) as Fila[],
+  calcular: (h, d, ife) => h === 'total' ? (d.C ?? []) : columnsA(h, d, ife) as unknown as Col[],
+  calculada: (h) => h === 'total',
+  acumular: (h, cols) => h === 'total' ? acumularA(cols) as unknown as Col[] : null,
   nivel: ([id, , t, , , ex = {}]) => (t === 's' || ['u', 'venta', 'IF', 'equip', 'mb', 'gastos', 'mc'].includes(id)) ? 1 : (t === 'g' || ex.l2 || ex.link) ? 2 : 3,
   pct: ([id], c) => c[id],
   kpis: (h) => h === 'marca'
@@ -128,4 +136,15 @@ export function enlacesHacia001(a: Datos | null, b: Datos | null, ife: boolean):
     out.mktG = a13(c, 'gas'); out.recM = a13(c, 'rec')
   }
   return out
+}
+
+/** FU-001-A total: cada sede (Σ marcas + gastos) y el Corporativo, con el aporte de cada sede y marca. */
+export function totalLineaA(
+  sedes: { sede: string; datos: Datos }[], corp: Datos | null, marcas: { marca: string; datos: Datos }[], ife: boolean,
+): Col[] {
+  return totalA(
+    sedes.map((s) => ({ sede: s.sede, cols: columnsA('sede', s.datos, ife) })),
+    corp ? columnsA('corp', corp, ife) : null,
+    marcas.map((m) => ({ marca: m.marca, cols: columnsA('marca', m.datos, ife) })),
+  ) as unknown as Col[]
 }

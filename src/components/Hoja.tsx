@@ -72,11 +72,11 @@ export default function Hoja({ fmt, hoja, datos, cols, ife, editable, nivel, vin
               </tr>
             )
             const off = (ex.ife && !ife) || (ex.onlyInd && ife) || (ex.onlyInt && !ife)
-            const cls = [t === 's' ? 'sub' : t === 'g' ? 'grp' : '', ex.cls || '', ex.ind ? 'ind' + ex.ind : '', off ? 'off' : ''].join(' ')
+            const cls = [t === 's' ? 'sub' : t === 'g' ? 'grp' : '', ex.cls || '', ex.ind ? 'ind' + ex.ind : '', off ? 'off' : '', ex.ctl ? 'ctl' : ''].join(' ')
             const mk = ex.m
             const vinc = mk ? vinculadas?.has(mk) : vinculadas?.has(id)
             const nota = (sup && sup.note) || (ex.note as string | undefined)
-            const tag = ex.src ? <span className={'src' + (ex.sum ? ' sum' : '')}>{ex.sum ? 'Σ marcas' : String(ex.src)}{vinc ? ' · enlazado' : ''}</span> : null
+            const tag = ex.src ? <span className={'src' + (ex.sum ? ' sum' : '')}>{ex.sum ? (ex.sumTxt || 'Σ marcas') : String(ex.src)}{vinc ? ' · enlazado' : ''}</span> : null
             return (
               <tr key={idx} className={cls} data-l={fmt.nivel(f)}>
                 <td className="c-rub"><div className="rub"><i>{x || ''}</i><span><em>{lab}</em> {tag}{nota && <small>{nota}</small>}</span></div></td>

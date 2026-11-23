@@ -4,7 +4,7 @@ import { useCatalogo } from '../lib/catalogo'
 import { usePermisos } from '../lib/permisos'
 import Hoja, { entero, money } from '../components/Hoja'
 import { VerComoSelector } from '../components/VerComo'
-import { FORMATOS, enlacesHacia001, sumaMarcasA, sumaMarcasB, type Col, type Datos, type FormatoDef } from '../formatos/registro'
+import { FORMATOS, enlacesHacia001, sumaMarcasA, sumaMarcasB, totalLineaA, type Col, type Datos, type FormatoDef } from '../formatos/registro'
 import { filas001DesdeHistorico, promedioMensual } from '../formatos/historico'
 
 const ANIO = 2027
@@ -29,6 +29,7 @@ export default function Formatos() {
   const [marca, setMarca] = useState(() => leerLS('ppto-marca'))
   const [nivel, setNivel] = useState<'1' | '2' | '3'>('3')
   const [ife, setIfe] = useState(true)
+  const [vista, setVista] = useState<'mensual' | 'acumulado'>('mensual')
 
   // ── qué puede ver: sedes y marcas disponibles para esta hoja
   const opciones = useMemo(() => {
@@ -50,8 +51,9 @@ export default function Formatos() {
   const alcance = hoja.alcance === 'marca' ? marcaOk : hoja.alcance === 'sede' ? '*' : hoja.alcance
   const sedeClave = hoja.alcance === 'marca' || hoja.alcance === 'sede' ? sedeOk : '*'
   const hayHoja = !!sedeOk && (hoja.alcance !== 'marca' || !!marcaOk)
-  const puedeEditar = hayHoja && perm.editar(fmt.linea, sedeClave, alcance)
-  const podriaEditar = hayHoja && perm.podriaEditar(fmt.linea, sedeClave, alcance)
+  const calculada = !!fmt.calculada?.(hoja.id)
+  const puedeEditar = hayHoja && !calculada && perm.editar(fmt.linea, sedeClave, alcance)
+  const podriaEditar = hayHoja && !calculada && perm.podriaEditar(fmt.linea, sedeClave, alcance)
 
   // ── check IF&E
   useEffect(() => {
@@ -129,6 +131,37 @@ export default function Formatos() {
       }
       if (hs && hs.length) { d.S = sumaMarcasA(hs.map((h) => conUnidades(h.alcance as string, completar(FORMATOS[1].ejemplo('marca'), h.datos as Partial<Datos>))), ife); nt = `Parte comercial: suma de ${hs.length} hoja${hs.length === 1 ? '' : 's'} de marca guardada${hs.length === 1 ? '' : 's'}` }
       else nt = 'Parte comercial: valores de ejemplo (aún no hay hojas de marca guardadas en esta sede)'
+    } else if (fmt.id === 'FU-001-A' && hoja.id === 'total') {
+      // Total línea IF&E: todas las hojas de FU-001-A y las unidades vigentes de FU-001
+      const [{ data: ha }, { data: us }] = await Promise.all([
+        sb().from('hojas').select('hoja, sede, alcance, datos').match({ formato: 'FU-001-A', anio: ANIO }).range(0, 4999),
+        sb().from('hojas').select('sede, alcance, datos').match({ formato: 'FU-001', hoja: 'marca', anio: ANIO }).range(0, 4999),
+      ])
+      const u001 = new Map((us ?? []).map((x) => [`${x.sede}|${x.alcance}`, x.datos as Partial<Datos>]))
+      const conUnidades = (s: string, alc: string, dd: Datos): Datos => {
+        const f = u001.get(`${s}|${alc}`); if (!f?.M?.units) return dd
+        return { ...dd, P: { ...dd.P, ticket: f.P?.ticket ?? dd.P.ticket }, M: { ...dd.M, units: [...f.M.units.slice(0, 12), dd.M.units?.[12] ?? 0] } }
+      }
+      const filasA = ha ?? []
+      const marcas = filasA.filter((x) => x.hoja === 'marca').map((x) => ({
+        sede: x.sede as string, marca: x.alcance as string,
+        datos: conUnidades(x.sede as string, x.alcance as string, completar(FORMATOS[1].ejemplo('marca'), x.datos as Partial<Datos>)),
+      }))
+      const orden = cat?.sedes ?? []
+      const sedesCon = [...new Set(marcas.map((m) => m.sede))].sort((a, b) => orden.indexOf(a) - orden.indexOf(b))
+      const guardadaSede = new Map(filasA.filter((x) => x.hoja === 'sede').map((x) => [x.sede as string, x.datos as Partial<Datos>]))
+      const sinGastos: string[] = []
+      const sedes = sedesCon.map((s) => {
+        const ds = completar(FORMATOS[1].ejemplo('sede'), guardadaSede.get(s) ?? null)
+        if (!guardadaSede.has(s)) sinGastos.push(s)
+        ds.S = sumaMarcasA(marcas.filter((m) => m.sede === s).map((m) => m.datos), ife)
+        return { sede: s, datos: ds }
+      })
+      const fc = filasA.find((x) => x.hoja === 'corp')
+      const corp = fc ? completar(FORMATOS[1].ejemplo('corp'), fc.datos as Partial<Datos>) : null
+      d.C = totalLineaA(sedes, corp, marcas, ife)
+      nt = `Suma de ${sedes.length} sede${sedes.length === 1 ? '' : 's'} (${marcas.length} hojas de marca)${corp ? ' y el Corporativo' : ''}`
+        + (sinGastos.length ? ` · gastos de ejemplo en ${sinGastos.join(', ')}: aún no tienen su consolidado guardado` : '')
     } else if (fmt.id === 'FU-001-B' && hoja.id === 'total') {
       const { data: hs } = await sb().from('hojas').select('datos').match({ formato: 'FU-001-B', hoja: 'marca', anio: ANIO })
       if (hs && hs.length) { d.S = sumaMarcasB(hs.map((h) => completar(FORMATOS[2].ejemplo('marca'), h.datos as Partial<Datos>))); nt = `Marketing de marcas: suma de ${hs.length} hoja${hs.length === 1 ? '' : 's'} guardada${hs.length === 1 ? '' : 's'}` }
@@ -137,7 +170,7 @@ export default function Formatos() {
     if (claveRef.current !== clave) return
     setDatos(d); setDatosDe(clave); setEnlazado(enl); setNota(nt); setHist(hs26); setFuentes(fuentesCarga)
     setEstado(data ? 'guardado' : 'ejemplo')
-  }, [clave, fmt, hoja, sedeOk, marcaOk, sedeClave, alcance, ife])
+  }, [clave, fmt, hoja, sedeOk, marcaOk, sedeClave, alcance, ife, cat])
 
   useEffect(() => { void cargar() }, [cargar])
 
@@ -167,10 +200,13 @@ export default function Formatos() {
   const conEnlaces: Datos | null = datos && datosDe === clave ? { ...datos, M: { ...datos.M, ...enlaces } } : null
   const cols = useMemo(() => {
     if (!conEnlaces) return null
-    const c = fmt.calcular(hoja.id, conEnlaces, ife)
+    let c = fmt.calcular(hoja.id, conEnlaces, ife)
+    if (!c.length) return null
     if (hist) c[13] = hist.col // la columna histórica sale del contable, no del ejemplo
+    if (vista === 'acumulado') c = fmt.acumular?.(hoja.id, c) ?? c
     return c
-  }, [conEnlaces, fmt, hoja, ife, hist])
+  }, [conEnlaces, fmt, hoja, ife, hist, vista])
+  const tieneAcumulado = !!fmt.acumular && fmt.acumular(hoja.id, []) !== null
   const vinculadas = useMemo(() => new Set(Object.keys(enlaces)), [enlaces])
 
   const ESTADO: Record<Estado, string> = {
@@ -242,10 +278,19 @@ export default function Formatos() {
             ))}
           </div>
           <div className="barra-hoja">
+            {calculada ? <span className="estado guardado">Calculada: no se llena, suma lo que ya está en las otras hojas</span> :
             <span className={'estado ' + (perm.previa ? (podriaEditar ? 'guardado' : '') : estado)}>{perm.previa
               ? `Vista de ${perm.verComo?.nombre || 'usuario'}: ${podriaEditar ? 'podría llenar esta hoja' : 'solo vería esta hoja'}`
-              : puedeEditar ? ESTADO[estado] : 'Solo lectura: puedes ver esta hoja, pero no editarla'}</span>
+              : puedeEditar ? ESTADO[estado] : 'Solo lectura: puedes ver esta hoja, pero no editarla'}</span>}
+            {tieneAcumulado && (
+              <div className="seg lvl" role="radiogroup" aria-label="Vista">
+                {([['mensual', 'Mensual'], ['acumulado', 'Acumulado']] as const).map(([v, n]) => (
+                  <span key={v}><input type="radio" id={'vi-' + v} name="vista" checked={vista === v} onChange={() => setVista(v)} /><label htmlFor={'vi-' + v}>{n}</label></span>
+                ))}
+              </div>
+            )}
             {nota && <span className="muted small">{nota}</span>}
+            {vista === 'acumulado' && tieneAcumulado && <span className="muted small">Vista acumulada: cada mes suma de enero hasta ese mes.</span>}
             <div className="seg lvl" role="radiogroup" aria-label="Nivel de detalle">
               {([['3', 'Todas las filas'], ['2', 'Subtotales'], ['1', 'Totales']] as const).map(([v, n]) => (
                 <span key={v}><input type="radio" id={'lv' + v} name="lvl" checked={nivel === v} onChange={() => setNivel(v)} /><label htmlFor={'lv' + v}>{n}</label></span>

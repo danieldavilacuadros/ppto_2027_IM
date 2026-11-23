@@ -149,3 +149,62 @@ export function rowsA(k){
       ['eMC','→ FU-005-C · MC IF&E','c',83,null,{ind:1,link:1}]);
     return R;
   }
+
+// ───────── Total línea IF&E ─────────
+// Suma, columna por columna, las sedes (cada una = Σ de sus marcas + sus gastos) y el Corporativo.
+// sedes: [{sede, cols}] · corp: cols | null · marcas: [{marca, cols}] (hojas por marca de todas las sedes)
+// Además deja el aporte de cada sede y de cada marca para el cuadre del esquema:
+// Σ IF&E por marca (+ Corporativo) = Σ IF&E por sede (+ Corporativo) = Total línea IF&E.
+const NO_SUMA=new Set(['pctU','pctI','pCred','pSeg','pFon','pGps','pMok','pGlp']);
+export function totalA(sedes,corp,marcas){
+  const partes=[...sedes.map(s=>s.cols),...(corp?[corp]:[])];
+  const out=[];
+  for(let c=0;c<14;c++){
+    const r={};
+    partes.forEach(p=>{ for(const k in p[c]) if(!NO_SUMA.has(k)) r[k]=(r[k]||0)+(Number(p[c][k])||0); });
+    sedes.forEach(s=>{ r['mb@'+s.sede]=s.cols[c].mb||0; r['gas@'+s.sede]=s.cols[c].gastos||0; r['mc@'+s.sede]=s.cols[c].mc||0; });
+    if(corp){ r['mb@corp']=corp[c].mb||0; r['gas@corp']=corp[c].gastos||0; r['mc@corp']=corp[c].mc||0; }
+    marcas.forEach(m=>{ r['mbm@'+m.marca]=(r['mbm@'+m.marca]||0)+(m.cols[c].mb||0); });
+    const sumMarcas=marcas.reduce((a,m)=>a+(m.cols[c].mb||0),0)+(corp?(corp[c].mb||0):0);
+    r.ctlMarca=sumMarcas-(r.mb||0);
+    ratiosA(r); pctsA(r);
+    out.push(r);
+  }
+  return out;
+}
+// Vista acumulada: cada mes muestra lo acumulado de enero a ese mes (el año y el histórico no cambian).
+export function acumularA(cols){
+  const out=[]; const run={};
+  for(let c=0;c<12;c++){
+    const r={};
+    for(const k in cols[c]){ if(NO_SUMA.has(k)) continue; run[k]=(run[k]||0)+(Number(cols[c][k])||0); r[k]=run[k]; }
+    if(r.hc!=null) r.hc=run.hc/(c+1);
+    ratiosA(r); pctsA(r);
+    out.push(r);
+  }
+  return [...out,cols[12],cols[13]];
+}
+const SEDES_T=['AREQUIPA','CUSCO','JULIACA','ICA','TRUJILLO','PIURA'];
+const MARCAS_T=['Hyundai','Hyundai CV','Geely','BYD','Volvo','Ford','Divemotor','Maxus','BAIC','Dongfeng','Omoda','Chery','Chevrolet','Isuzu','Mitsubishi','Fuso'];
+export function rowsTotalA(){
+  const base=rowsA('sede');
+  const fin=base.findIndex(f=>f[2]==='sec'&&String(f[1]).startsWith('Enlace'));
+  const R=(fin<0?base:base.slice(0,fin)).map(f=>{
+    const [id,lab,t,x,,ex={}]=f;
+    const e=Object.assign({},ex); delete e.m; delete e.note;
+    if(e.sum) e.sumTxt='Σ sedes';
+    if(String(lab).startsWith('Gastos propios IF&E · se cargan')) return ['','Gastos propios IF&E · suma de las sedes y el Corporativo','sec'];
+    return [id,lab,t==='in'?'c':t,x,null,e];
+  });
+  R.push(['','Cuadre por sede · Σ por sede + Corporativo = Total','sec']);
+  SEDES_T.forEach(s=>R.push(['mc@'+s,'MC IF&E · '+s,'c',null,null,{l2:1}]));
+  R.push(['mc@corp','MC IF&E · Canal Corporativo','c',null,null,{l2:1}]);
+  R.push(['','Aporte de cada sede al MB y a los gastos','sec']);
+  SEDES_T.forEach(s=>{ R.push(['mb@'+s,'MB IF&E · '+s,'c',null,null,{ind:1}]); R.push(['gas@'+s,'Gastos propios · '+s,'c',null,null,{ind:2}]); });
+  R.push(['mb@corp','MB IF&E · Canal Corporativo','c',null,null,{ind:1}]);
+  R.push(['gas@corp','Gastos propios · Canal Corporativo','c',null,null,{ind:2}]);
+  R.push(['','Cuadre por marca · Σ por marca + Corporativo = MB total','sec']);
+  MARCAS_T.forEach(m=>R.push(['mbm@'+m,'MB IF&E · '+m+' (todas las sedes)','c',null,null,{ind:1}]));
+  R.push(['ctlMarca','Diferencia: Σ marcas + Corporativo − MB total (debe ser 0)','c',null,null,{l2:1,ctl:1}]);
+  return R;
+}

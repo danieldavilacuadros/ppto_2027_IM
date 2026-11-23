@@ -298,3 +298,5 @@ table.sheet[data-lvl="2"] tr[data-l="3"],table.sheet[data-lvl="1"] tr[data-l="2"
 .moneda span{grid-column:1/3;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--grafito-muted)}
 .moneda b{font:700 34px/1.1 var(--mono);color:var(--oro)}
 .moneda em{font-style:normal;font-weight:600;font-size:14px;line-height:1.25;max-width:9.5em}
+/* fila de control del cuadre */
+.sheet tr.ctl td{font-weight:600;color:var(--emp)}
