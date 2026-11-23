@@ -44,7 +44,7 @@ export default function Ayuda() {
 
       <Seccion id="empezar" n={1} titulo="Tu presupuesto en 4 pasos">
         <div className="ay-pasos">
-          <div><b>1</b><h3>Entra</h3><p>Con tu correo de la empresa, desde la computadora.</p></div>
+          <div><b>1</b><h3>Entra</h3><p>Con tu correo y la contraseña que te dio administración; luego cámbiala.</p></div>
           <div><b>2</b><h3>Elige tu marca</h3><p><i>Formatos → FU-001 · Unidades</i>, tu sede y tu marca.</p></div>
           <div><b>3</b><h3>Ajusta lo amarillo</h3><p>Unidades, ticket y supuestos. Lo demás se calcula solo.</p></div>
           <div><b>4</b><h3>Compara y listo</h3><p>Mira el histórico 2026, confirma que diga <i>Guardado</i> y pasa a la siguiente marca.</p></div>
@@ -66,20 +66,15 @@ export default function Ayuda() {
       <Seccion id="entrar" n={2} titulo="Cómo entrar">
         <ol className="ay-lista">
           <li>Abre <b>danieldavilacuadros.github.io/ppto_2027_IM</b> en <b>Chrome</b> o Edge, mejor en computadora: la tabla es ancha.</li>
-          <li>La primera vez te llega un <b>correo de invitación</b>: ábrelo y sigue sus pasos.</li>
-          <li>Después elige cómo entrar:
-            <ul>
-              <li><b>Con contraseña:</b> tu correo, tu contraseña y <i>Entrar</i>.</li>
-              <li><b>Enlace al correo:</b> escribe tu correo y pulsa <i>Enviarme el enlace</i>. Ábrelo <b>en el mismo navegador</b> donde lo pediste.</li>
-            </ul>
-          </li>
+          <li>Deja marcado <b>Con contraseña</b>, escribe tu <b>correo de la empresa</b> y la <b>contraseña inicial</b> que te envió administración. Pulsa <i>Entrar</i>.</li>
+          <li>La primera vez, <b>cambia tu contraseña</b>: haz clic en <b>tu nombre</b> (arriba a la derecha) → escribe una nueva dos veces → <i>Guardar mi nueva contraseña</i>. Mínimo 8 caracteres.</li>
           <li>Llegas a <b>Inicio</b>: te saluda y te muestra tus jefaturas y qué líneas <b>llenas</b> o <b>solo ves</b>.</li>
         </ol>
         <div className="ay-dos">
-          <Ojo><i>“No pudimos enviar el enlace”</i>: tu correo no está invitado o tiene una letra distinta. Revísalo; si sigue, avisa a administración.</Ojo>
-          <Ojo><i>“Tu usuario no tiene perfil”</i> o <i>“Usuario desactivado”</i>: no es algo que arregles tú, avisa a administración.</Ojo>
+          <Ojo><i>“Invalid login credentials”</i>: el correo o la contraseña no coinciden. Revisa mayúsculas y que no haya espacios al copiarla.</Ojo>
+          <Ojo>¿Olvidaste tu contraseña? Avisa a administración y te asigna una nueva. <i>“Tu usuario no tiene perfil”</i> o <i>“Usuario desactivado”</i>: también avisa.</Ojo>
         </div>
-        <Tip>En una computadora compartida, sal siempre con el botón <b>Salir</b> de arriba a la derecha.</Tip>
+        <Tip>Tu sesión queda abierta en ese navegador. En una computadora compartida, sal siempre con el botón <b>Salir</b> de arriba a la derecha.</Tip>
       </Seccion>
 
       <Seccion id="pantalla" n={3} titulo="Conoce la pantalla">

@@ -287,3 +287,6 @@ table.sheet[data-lvl="2"] tr[data-l="3"],table.sheet[data-lvl="1"] tr[data-l="2"
 .ay-check li::before{content:"\2713";position:absolute;left:12px;top:8px;display:grid;place-items:center;width:19px;height:19px;border-radius:5px;background:var(--verde-f);color:var(--verde-t);font-weight:700;font-size:12px}
 .ay-fin{text-align:center;font-weight:600;color:var(--oro-texto);padding-top:6px}
 @media (max-width:760px){.ay-hero{grid-template-columns:1fr;padding:20px}.ay-hero h1{font-size:24px}}
+
+.quien-nombre{color:var(--grafito-txt);text-decoration:none;font-size:13.5px;padding:4px 8px;border-radius:6px}
+.quien-nombre:hover,.quien-nombre.active{background:var(--grafito-2);color:var(--oro-claro)}

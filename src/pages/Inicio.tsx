@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { sb } from '../lib/supabase'
 import { useSesion } from '../lib/sesion'
 import { useCatalogo } from '../lib/catalogo'
@@ -7,7 +8,8 @@ import { VerComoSelector } from '../components/VerComo'
 
 /** Resumen de lo que ve y edita el usuario conectado; administración puede «ver como» otro usuario. */
 export default function Inicio() {
-  const { perfil, esAdmin, verComo: elegido } = useSesion()
+  const { perfil, esAdmin, verComo: elegido, session } = useSesion()
+  const claveInicial = !esAdmin && !session?.user.user_metadata?.clave_propia
   const mostrado = esAdmin ? elegido : perfil
 
   return (
@@ -19,6 +21,10 @@ export default function Inicio() {
           ? 'Tienes acceso de administración: ves y editas todo. Con «Ver como» revisas lo que verá cada usuario antes de invitarlo.'
           : 'Este es el resumen de lo que puedes ver y editar en el presupuesto 2027.'}</p>
       </div>
+
+      {claveInicial && (
+        <p className="ay-nota ojo"><b>Ojo</b><span>Estás usando la contraseña inicial. <Link to="/cuenta">Cámbiala aquí</Link> por una que solo tú conozcas; toma un minuto.</span></p>
+      )}
 
       {esAdmin && (
         <div className="card vercomo">
