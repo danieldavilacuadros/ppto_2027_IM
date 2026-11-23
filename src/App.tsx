@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Inicio from './pages/Inicio'
 import Configuracion from './pages/config/Configuracion'
 import Formatos from './pages/Formatos'
+import Ayuda from './pages/Ayuda'
 import { VerComoAviso } from './components/VerComo'
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
         <nav className="tabs" aria-label="Secciones">
           <NavLink to="/" end>Inicio</NavLink>
           <NavLink to="/formatos">Formatos</NavLink>
+          <NavLink to="/ayuda">Ayuda</NavLink>
           {esAdmin && <NavLink to="/configuracion">Configuración</NavLink>}
         </nav>
         <div className="quien">
@@ -49,6 +51,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Inicio />} />
           <Route path="/formatos" element={<Formatos />} />
+          <Route path="/ayuda" element={<Ayuda />} />
           <Route path="/configuracion/*" element={esAdmin ? <Configuracion /> : <Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
