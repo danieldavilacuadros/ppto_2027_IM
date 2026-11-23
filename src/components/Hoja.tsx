@@ -8,7 +8,7 @@ const nf2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFr
 export const money = (v: number) => { if (!isFinite(v) || Math.abs(v) < 0.005) return '–'; const s = nf0.format(Math.abs(v)); return v < 0 ? `(${s})` : s }
 export const pct = (v: number) => (isFinite(v) ? (v * 100).toFixed(1) + ' %' : '–')
 export const entero = (v: number) => nf0.format(v)
-const supTxt = (v: number, f: string) => (f === 'pct' ? String(Math.round(v * 10000) / 100) : f === 'num1' ? v.toFixed(1) : String(Math.round(v * 100) / 100))
+const supTxt = (v: number = 0, f: string) => (f === 'pct' ? String(Math.round(v * 10000) / 100) : f === 'num1' ? v.toFixed(1) : String(Math.round(v * 100) / 100))
 const supFijo = (v: number, f: string) => (f === 'pct' ? (v * 100).toFixed(2) + ' %' : nf2.format(v))
 const leer = (s: string) => { const v = parseFloat(String(s).replace(/,/g, '').replace('%', '')); return isFinite(v) ? v : 0 }
 

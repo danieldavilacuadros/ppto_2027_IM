@@ -65,6 +65,8 @@ export default function Formatos() {
 
   // ── carga de la hoja y de lo que llega de otros formatos
   const [datos, setDatos] = useState<Datos | null>(null)
+  // clave de la hoja a la que pertenecen «datos»: evita dibujar un formato con los datos de otro al cambiar
+  const [datosDe, setDatosDe] = useState('')
   const [estado, setEstado] = useState<Estado>('ejemplo')
   const [enlazado, setEnlazado] = useState<Record<string, number[]>>({})
   const [nota, setNota] = useState('')
@@ -112,7 +114,7 @@ export default function Formatos() {
       else nt = 'Marketing de marcas: valores de ejemplo (aún no hay hojas guardadas)'
     }
     if (claveRef.current !== clave) return
-    setDatos(d); setEnlazado(enl); setNota(nt); setHist(hs26)
+    setDatos(d); setDatosDe(clave); setEnlazado(enl); setNota(nt); setHist(hs26)
     setEstado(data ? 'guardado' : 'ejemplo')
   }, [clave, fmt, hoja, sedeOk, marcaOk, sedeClave, alcance, ife])
 
@@ -135,7 +137,7 @@ export default function Formatos() {
     }, 700)
   }
 
-  const conEnlaces: Datos | null = datos ? { ...datos, M: { ...datos.M, ...enlazado } } : null
+  const conEnlaces: Datos | null = datos && datosDe === clave ? { ...datos, M: { ...datos.M, ...enlazado } } : null
   const cols = useMemo(() => {
     if (!conEnlaces) return null
     const c = fmt.calcular(hoja.id, conEnlaces, ife)
