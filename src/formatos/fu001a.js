@@ -276,8 +276,10 @@ export function baseLineaA(T,sedes,corp){
   return {u:m('u'),venta:m('venta'),mb:m('mb'),prima,partes};
 }
 function prorratear(r,vtot,partes,i,glin){ partes.forEach(([k,v])=>{ const sh=vtot?(v[i]||0)/vtot:0; r['part@'+k]=sh; r['pro@'+k]=glin*sh; }); }
+// Participación anual: facturación del año de cada parte sobre el total (no depende de que haya gastos)
+function partAnual(r,B){ const vt=B.venta.reduce((a,x)=>a+x,0); B.partes.forEach(([k,v])=>{ r['part@'+k]=vt?v.reduce((a,x)=>a+x,0)/vt:0; }); }
 function fixPart(r){
-  for(const k in r) if(k.startsWith('pro@')){ const s=k.slice(4); r['part@'+s]=r.glin?r[k]/r.glin:0; if(r['mc@'+s]!=null) r['mcp@'+s]=r['mc@'+s]+r[k]; }
+  for(const k in r) if(k.startsWith('pro@')){ const s=k.slice(4); if(r.glin) r['part@'+s]=r[k]/r.glin; if(r['mc@'+s]!=null) r['mcp@'+s]=r['mc@'+s]+r[k]; }
   if(r.glin!=null&&r.mc!=null){ r.cont=r.mc+r.glin; r.pctCont=(r.IF+r.eqp)?r.cont/(r.IF+r.eqp):0; }
 }
 // Hoja «Gastos de línea»: tabla de personal nacional + rubros, sobre la base nacional B
@@ -293,7 +295,7 @@ export function lineaA(st,B){
     out.push(r);
   }
   const yr={}; for(const k in out[0]) if(!k.startsWith('part@')) yr[k]=out.reduce((a,r)=>a+(Number(r[k])||0),0);
-  fixPart(yr);
+  fixPart(yr); partAnual(yr,B);
   return [...out,yr,{}];
 }
 // Total: resta los gastos de línea y deja el prorrateo por sede y Corporativo
@@ -301,7 +303,7 @@ export function aplicarLineaA(T,L,B){
   for(let c=0;c<12;c++){ const r=T[c]; r.glin=L[c].glin; prorratear(r,B.venta[c],B.partes,c,r.glin); fixPart(r); }
   const y=T[12]; y.glin=L[12].glin;
   for(const k in T[0]) if(k.startsWith('pro@')) y[k]=T.slice(0,12).reduce((a,r)=>a+(r[k]||0),0);
-  fixPart(y); T[13].glin=0; fixPart(T[13]);
+  fixPart(y); partAnual(y,B); T[13].glin=0; fixPart(T[13]);
   return T;
 }
 export function rowsLinea(){
