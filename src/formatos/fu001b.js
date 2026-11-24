@@ -1,8 +1,9 @@
 // Motor de FU-001-B (Marketing), validado contra el Excel en 448 celdas. No editar los cálculos sin volver a validar.
 /* eslint-disable */
+import { costoPlan } from './personal.js';
 export const XB={ // valores del Excel FU-001-B (CUSCO · Hyundai; total = suma de ejemplo)
  marca:{P:{},M:{gas:[-25000.0,-22000.0,-24000.0,-26000.0,-25000.0,-23000.0,-27000.0,-28000.0,-25000.0,-26000.0,-30000.0,-32000.0,-24000.0],rec:[12250.0,11000.0,12000.0,13000.0,12500.0,11500.0,13500.0,14000.0,12500.0,13000.0,15000.0,16000.0,11500.0]}},
- total:{P:{hc:3.0,sueldo:-882.352941176,bono:0.1,lab:0.4,equipo:-55.0,agencias:-1500.0,software:-400.0,otros:-100.0,mob:-50.0,agua:-40.0},M:{viajes:[-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0],atenc:[-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0]},S:{gas:[-175000.0,-154000.0,-168000.0,-182000.0,-175000.0,-161000.0,-189000.0,-196000.0,-175000.0,-182000.0,-210000.0,-224000.0,-168000.0],rec:[85750.0,77000.0,84000.0,91000.0,87500.0,80500.0,94500.0,98000.0,87500.0,91000.0,105000.0,112000.0,80500.0]}}
+ total:{T:[],P:{tc:3.4,hc:3.0,sueldo:-882.352941176,bono:0.1,lab:0.4,equipo:-55.0,agencias:-1500.0,software:-400.0,otros:-100.0,mob:-50.0,agua:-40.0},M:{viajes:[-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0],atenc:[-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0]},S:{gas:[-175000.0,-154000.0,-168000.0,-182000.0,-175000.0,-161000.0,-189000.0,-196000.0,-175000.0,-182000.0,-210000.0,-224000.0,-168000.0],rec:[85750.0,77000.0,84000.0,91000.0,87500.0,80500.0,94500.0,98000.0,87500.0,91000.0,105000.0,112000.0,80500.0]}}
 };
 
 export function computeB(kind,P,m){
@@ -60,6 +61,7 @@ export function rowsB(k){
       ['bono','Bonos por objetivos','c',17,{k:'bono',f:'pct',e:1,note:'% sobre los sueldos básicos'},{ind:1}],
       ['lab','Costo laboral','c',18,{k:'lab',f:'pct',e:1,note:'Factor empresa sobre sueldo + bonos'},{ind:1}],
       ['equipo','Laptops, equipos, licencias y celular','c',19,{k:'equipo',f:'num',e:1,note:'Por persona al mes'},{ind:1}],
+      ['plan','Personal del área · tabla de personal','c',null,null,{ind:1,src:'Tabla de personal',note:'Con su propio costo laboral; quien esté aquí no va en el headcount'}],
       ['oper','Gestión de operación','g',21],
       ['agencias','Agencias, producción y diseño institucional','c',22,{k:'agencias',f:'num',e:1,note:'Monto mensual (lo que no es de una marca)'},{ind:1}],
       ['software','Software, herramientas digitales y suscripciones','c',23,{k:'software',f:'num',e:1,note:'Monto mensual'},{ind:1}],
@@ -78,3 +80,14 @@ export function rowsB(k){
       ['e003','→ FU-003 · gastos de estructura · área de marketing','c',41,null,{ind:1,link:1}]
     ];
   }
+// Área de marketing: la tabla de personal se suma a «Cargas del personal», al área y al total
+export function conPlanB(cols,filas,P){
+  const pc=costoPlan(filas,{lab:P.lab,tc:P.tc});
+  for(let i=0;i<12;i++){ const r=cols[i];
+    r.plan=pc.tot[i]; r.personal+=r.plan; r.area+=r.plan; r.total+=r.plan; r.e003=r.area; pctsB(r); }
+  cols[13].plan=0;
+  const months=cols.slice(0,12), yr={};
+  for(const k in months[0]) yr[k]=months.reduce((a,r)=>a+(Number(r[k])||0),0);
+  if(yr.hc!=null) yr.hc=yr.hc/12; pctsB(yr); cols[12]=yr;
+  return cols;
+}

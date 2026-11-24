@@ -1,12 +1,12 @@
 // Registro de formatos: qué hojas tiene cada uno, sus valores de ejemplo, filas y cómo se calcula.
 import { XL, computeCol, FILAS as FILAS001 } from './fu001.js'
 import { XA, LEAF, columnsA, rowsA, rowsTotalA, totalA, acumularA, conPlanSede, baseLineaA, lineaA, aplicarLineaA, rowsLinea } from './fu001a.js'
-import { XB, columnsB, rowsB } from './fu001b.js'
+import { XB, columnsB, rowsB, conPlanB } from './fu001b.js'
 
 export type Col = Record<string, number>
 /** Un puesto de la tabla de personal. fijo y monto en S/ al mes; val de % como fracción. */
 export type Puesto = {
-  cargo: string; nombre?: string; fijo: number; tipo: 'ninguno' | 'pctMB' | 'pctPrima' | 'monto'; val: number
+  cargo: string; nombre?: string; fijo: number; tipo: 'ninguno' | 'pctMB' | 'pctPrima' | 'pctFijo' | 'monto'; val: number
   desde: number; hasta: number; pSede?: string; pDesde?: number; pResto?: number; rep?: 'auto' | Record<string, number>
 }
 /** Base nacional (12 meses) para la hoja de línea y el prorrateo */
@@ -119,11 +119,12 @@ const FU001B: FormatoDef = {
   id: 'FU-001-B', nombre: 'Marketing', linea: 'marketing',
   hojas: [
     { id: 'marca', nombre: 'Por sede × marca', alcance: 'marca', descripcion: 'Gasto de marketing y recobro de la marca, mes a mes. Pasan a las filas 55 y 56 de FU-001 de esa sede y marca.' },
-    { id: 'total', nombre: 'Marketing total', alcance: 'total', descripcion: 'Suma el neto de todas las sedes y marcas y carga una sola vez los gastos del área de marketing, que van a FU-003.' },
+    { id: 'total', nombre: 'Marketing total', alcance: 'total', descripcion: 'Suma el neto de todas las sedes y marcas y carga una sola vez los gastos del área de marketing, que van a FU-003. El personal del área se carga en la tabla de personal de abajo.' },
   ],
   ejemplo: (h) => copia((XB as Record<string, Datos>)[h]),
   filas: (h) => rowsB(h) as Fila[],
-  calcular: (h, d) => columnsB(h, d) as unknown as Col[],
+  calcular: (h, d) => h === 'total' ? conPlanB(columnsB(h, d), d.T ?? [], d.P) as unknown as Col[] : columnsB(h, d) as unknown as Col[],
+  tablaPersonal: (h) => h === 'total',
   nivel: ([id, , t, , , ex = {}]) => (t === 's' || ['gas', 'rec', 'neto', 'area', 'total'].includes(id)) ? 1 : (t === 'g' || ex.link) ? 2 : 3,
   pct: ([id], c) => c[id],
   kpis: (h) => h === 'marca'

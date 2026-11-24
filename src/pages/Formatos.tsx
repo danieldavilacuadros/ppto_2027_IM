@@ -321,7 +321,7 @@ export default function Formatos() {
             const M = { ...d.M }; Object.keys(enlaces).forEach((k) => { M[k] = datos.M[k] })
             cambiar({ ...d, M })
           }} />
-          {conTabla && <TablaPersonal tipo={hoja.id === 'linea' ? 'linea' : 'sede'} filas={(conEnlaces!.T ?? []) as Puesto[]}
+          {conTabla && <TablaPersonal tipo={hoja.id === 'linea' ? 'linea' : fmt.id === 'FU-001-B' ? 'marketing' : 'sede'} filas={(conEnlaces!.T ?? []) as Puesto[]}
             marcas={(conEnlaces!.V ?? []).map((v) => v.marca)} tc={conEnlaces!.P.tc ?? 3.4} costo={costo} editable={puedeEditar}
             onCambio={(T) => cambiar({ ...datos, T })} onTc={(tc) => cambiar({ ...datos, P: { ...datos.P, tc } })} />}
           <p className="muted small">El número gris al lado de cada rubro es su fila en el Excel. {hist

@@ -3,7 +3,16 @@ import type { Puesto } from '../formatos/registro'
 import { money, pct } from './Hoja'
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Set', 'Oct', 'Nov', 'Dic']
-const TIPOS: [Puesto['tipo'], string][] = [['ninguno', 'Sin variable'], ['pctMB', '% del MB IF&E'], ['pctPrima', '% de primas netas'], ['monto', 'Monto fijo S/ al mes']]
+const TIPOS: [Puesto['tipo'], string][] = [['ninguno', 'Sin variable'], ['pctMB', '% del MB IF&E'], ['pctPrima', '% de primas netas'], ['pctFijo', '% del fijo (bono)'], ['monto', 'Monto fijo S/ al mes']]
+const TEXTO = {
+  linea: ['Personal de línea (nacional)', 'Puestos que se cargan a toda la línea. El % del MB usa el MB IF&E nacional (sedes y Canal Corporativo); el % de primas usa las primas netas de seguros de las sedes, desde el mes en que se activa cada una.',
+    'Montos en soles: se pasan a dólares con el TC y se les suma el costo laboral de la hoja (40 %, factor de toda la empresa por ahora). En el Total línea IF&E estos gastos se restan aparte y se prorratean a cada sede y al Corporativo según su participación en la facturación de vehículos (unidades × ticket sin IGV), mes a mes: criterio provisional hasta que Contabilidad defina uno. Solo la ven el gerente de línea y administración.'],
+  sede: ['Personal compartido de la sede', 'Puestos que atienden a varias marcas y no se pueden asignar a una: caja, asistentes, movilizadores, calidad, supervisores. Los asesores F&I siguen arriba como headcount × sueldo. El % del MB usa el MB IF&E de la sede.',
+    'Montos en soles, con el costo laboral de la hoja. Automático: cada puesto se reparte entre las marcas de la sede según su facturación de vehículos del mes; a mano, los porcentajes deben sumar 100 %. Seguridad y limpieza de terceros siguen como montos mensuales. La tabla la ve quien ve la hoja de la sede.'],
+  marketing: ['Personal del área de marketing', 'Jefe, analistas, diseño, community y demás puestos del área. El bono puede ser un % del fijo o un monto fijo mensual. Quien esté en la tabla no se cuenta en el headcount de arriba: si cargas a todo el equipo aquí, deja el headcount en 0 (los equipos por persona siguen usando el headcount).',
+    'Montos en soles: se pasan a dólares con el TC y se les suma el costo laboral de la hoja (40 %, factor de toda la empresa por ahora). Suma a los gastos del área, que van a FU-003. La tabla la ve quien ve la hoja Marketing total.'],
+} as const
+const TIPOS_DE = { linea: ['ninguno', 'pctMB', 'pctPrima', 'pctFijo', 'monto'], sede: ['ninguno', 'pctMB', 'pctFijo', 'monto'], marketing: ['ninguno', 'pctFijo', 'monto'] } as const
 const leer = (s: string) => { const v = parseFloat(String(s).replace(/,/g, '').replace('%', '')); return isFinite(v) ? v : 0 }
 const suma = (a: number[]) => a.reduce((x, y) => x + y, 0)
 const titulo = (s: string) => s.charAt(0) + s.slice(1).toLowerCase()
@@ -11,7 +20,7 @@ const titulo = (s: string) => s.charAt(0) + s.slice(1).toLowerCase()
 export type CostoPlan = { tot: number[]; filas: { tot: number[] }[]; marcas: Record<string, number> }
 
 interface Props {
-  tipo: 'linea' | 'sede'
+  tipo: 'linea' | 'sede' | 'marketing'
   filas: Puesto[]
   /** marcas de la sede (para el reparto a mano) */
   marcas: string[]
@@ -24,7 +33,8 @@ interface Props {
 
 /** Tabla de personal: puestos que se cargan a la sede o a toda la línea, con su fijo, variable y meses activos. */
 export default function TablaPersonal({ tipo, filas, marcas, tc, costo, editable, onCambio, onTc }: Props) {
-  const L = tipo === 'linea'
+  const L = tipo !== 'sede' // sin reparto por marca
+  const [tit, desc, nota] = TEXTO[tipo]
   const set = (i: number, cambio: Partial<Puesto>) => onCambio(filas.map((f, j) => (j === i ? { ...f, ...cambio } : f)))
   const enter = (e: KeyboardEvent) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()
   const selMes = (v: number, on: (n: number) => void, lab: string) => (
@@ -38,10 +48,8 @@ export default function TablaPersonal({ tipo, filas, marcas, tc, costo, editable
     <div className="card stack tpers">
       <div className="tpers-head">
         <div>
-          <h3>{L ? 'Personal de línea (nacional)' : 'Personal compartido de la sede'}</h3>
-          <p className="muted small">{L
-            ? 'Puestos que se cargan a toda la línea. El % del MB usa el MB IF&E nacional (sedes y Canal Corporativo); el % de primas usa las primas netas de seguros de las sedes, desde el mes en que se activa cada una.'
-            : 'Puestos que atienden a varias marcas y no se pueden asignar a una: caja, asistentes, movilizadores, calidad, supervisores. Los asesores F&I siguen arriba como headcount × sueldo. El % del MB usa el MB IF&E de la sede.'}</p>
+          <h3>{tit}</h3>
+          <p className="muted small">{desc}</p>
         </div>
         <label className="ctx">TC S/ por US$
           <input className="inp" key={'tc' + tc} defaultValue={tc} inputMode="decimal" disabled={!editable} aria-label="Tipo de cambio"
@@ -56,7 +64,7 @@ export default function TablaPersonal({ tipo, filas, marcas, tc, costo, editable
           <tbody>
             {filas.length === 0 && <tr><td colSpan={L ? 8 : 9} className="muted">Sin puestos todavía{editable ? ': usa «Agregar puesto».' : '.'}</td></tr>}
             {filas.map((f, i) => {
-              const esPct = f.tipo === 'pctMB' || f.tipo === 'pctPrima'
+              const esPct = f.tipo === 'pctMB' || f.tipo === 'pctPrima' || f.tipo === 'pctFijo'
               const man = !!f.rep && typeof f.rep === 'object'
               const rep = man ? f.rep as Record<string, number> : {}
               const sm = marcas.reduce((a, m) => a + (Number(rep[m]) || 0), 0)
@@ -71,7 +79,7 @@ export default function TablaPersonal({ tipo, filas, marcas, tc, costo, editable
                   <td>
                     <select className="cin borde" value={f.tipo} disabled={!editable} aria-label="Tipo de variable"
                       onChange={(e) => { const t = e.target.value as Puesto['tipo']; set(i, t === 'pctPrima' ? { tipo: t, pSede: f.pSede || 'AREQUIPA', pDesde: f.pDesde || 1, pResto: f.pResto || 1 } : { tipo: t }) }}>
-                      {TIPOS.map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                      {TIPOS.filter(([v]) => (TIPOS_DE[tipo] as readonly string[]).includes(v) || v === f.tipo).map(([v, n]) => <option key={v} value={v}>{n}</option>)}
                     </select>
                     {f.tipo !== 'ninguno' && <> <input className="inp sm" key={'v' + i + f.val + f.tipo} defaultValue={esPct ? Math.round(f.val * 1e6) / 1e4 : f.val} inputMode="decimal" disabled={!editable} aria-label="Valor del variable"
                       onBlur={(e) => { const v = esPct ? leer(e.target.value) / 100 : leer(e.target.value); if (v !== f.val) set(i, { val: v }) }} onKeyDown={enter} /> {esPct ? '%' : 'S/'}</>}
@@ -108,9 +116,7 @@ export default function TablaPersonal({ tipo, filas, marcas, tc, costo, editable
           {Object.entries(costo.marcas).map(([m, v]) => <div key={m}><small>{m}</small><b>{money(v)}</b><small>{pct(v / (suma(costo.tot) || 1))}</small></div>)}
         </div>
       )}
-      <p className="muted small">{L
-        ? 'Montos en soles: se pasan a dólares con el TC y se les suma el costo laboral de la hoja (40 %, factor de toda la empresa por ahora). En el Total línea IF&E estos gastos se restan aparte y se prorratean a cada sede y al Corporativo según su participación en la facturación de vehículos (unidades × ticket sin IGV), mes a mes: criterio provisional hasta que Contabilidad defina uno. Solo la ven el gerente de línea y administración.'
-        : 'Montos en soles, con el costo laboral de la hoja. Automático: cada puesto se reparte entre las marcas de la sede según su facturación de vehículos del mes; a mano, los porcentajes deben sumar 100 %. Seguridad y limpieza de terceros siguen como montos mensuales. La tabla la ve quien ve la hoja de la sede.'}</p>
+      <p className="muted small">{nota}</p>
     </div>
   )
 }
