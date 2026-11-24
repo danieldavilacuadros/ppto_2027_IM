@@ -4,7 +4,9 @@ import { useCatalogo } from '../lib/catalogo'
 import { usePermisos } from '../lib/permisos'
 import Hoja, { entero, money } from '../components/Hoja'
 import { VerComoSelector } from '../components/VerComo'
-import { FORMATOS, enlacesHacia001, sumaMarcasA, sumaMarcasB, totalLineaA, type Col, type Datos, type FormatoDef } from '../formatos/registro'
+import TablaPersonal, { type CostoPlan } from '../components/TablaPersonal'
+import { costoPlan } from '../formatos/fu001a.js'
+import { FORMATOS, baseNacionalA, enlacesHacia001, sumaMarcasA, sumaMarcasB, totalLineaA, ventaMarcasA, type Col, type Datos, type FormatoDef, type Puesto } from '../formatos/registro'
 import { filas001DesdeHistorico, promedioMensual } from '../formatos/historico'
 
 const ANIO = 2027
@@ -15,7 +17,7 @@ const leerLS = (k: string) => { try { return localStorage.getItem(k) ?? '' } cat
 /** Une lo guardado con el ejemplo, para que no falte ninguna clave del motor. */
 function completar(base: Datos, guardado: Partial<Datos> | null): Datos {
   if (!guardado) return base
-  return { P: { ...base.P, ...(guardado.P ?? {}) }, M: { ...base.M, ...(guardado.M ?? {}) }, S: base.S }
+  return { P: { ...base.P, ...(guardado.P ?? {}) }, M: { ...base.M, ...(guardado.M ?? {}) }, S: base.S, T: guardado.T ?? base.T }
 }
 
 export default function Formatos() {
@@ -41,8 +43,7 @@ export default function Formatos() {
       return { sedes, marcasPor }
     }
     if (hoja.alcance === 'sede') return { sedes: cat.sedes.filter((s) => perm.ver(L, s, '*')), marcasPor: () => [] as string[] }
-    const alc = hoja.alcance === 'corp' ? 'corp' : 'total'
-    return { sedes: perm.ver(L, '*', alc) ? ['*'] : [], marcasPor: () => [] as string[] }
+    return { sedes: perm.ver(L, '*', hoja.alcance) ? ['*'] : [], marcasPor: () => [] as string[] }
   }, [cat, perm, fmt, hoja])
 
   const sedeOk = opciones?.sedes.includes(sede) ? sede : opciones?.sedes[0] ?? ''
@@ -129,10 +130,12 @@ export default function Formatos() {
         const f = u001.get(alc); if (!f?.M?.units) return dd
         return { ...dd, P: { ...dd.P, ticket: f.P?.ticket ?? dd.P.ticket }, M: { ...dd.M, units: [...f.M.units.slice(0, 12), dd.M.units?.[12] ?? 0] } }
       }
-      if (hs && hs.length) { d.S = sumaMarcasA(hs.map((h) => conUnidades(h.alcance as string, completar(FORMATOS[1].ejemplo('marca'), h.datos as Partial<Datos>))), ife); nt = `Parte comercial: suma de ${hs.length} hoja${hs.length === 1 ? '' : 's'} de marca guardada${hs.length === 1 ? '' : 's'}` }
+      const lista = (hs ?? []).map((h) => ({ marca: h.alcance as string, datos: conUnidades(h.alcance as string, completar(FORMATOS[1].ejemplo('marca'), h.datos as Partial<Datos>)) }))
+      d.V = ventaMarcasA(lista, ife)
+      if (hs && hs.length) { d.S = sumaMarcasA(lista.map((x) => x.datos), ife); nt = `Parte comercial: suma de ${hs.length} hoja${hs.length === 1 ? '' : 's'} de marca guardada${hs.length === 1 ? '' : 's'}` }
       else nt = 'Parte comercial: valores de ejemplo (aún no hay hojas de marca guardadas en esta sede)'
-    } else if (fmt.id === 'FU-001-A' && hoja.id === 'total') {
-      // Total línea IF&E: todas las hojas de FU-001-A y las unidades vigentes de FU-001
+    } else if (fmt.id === 'FU-001-A' && (hoja.id === 'total' || hoja.id === 'linea')) {
+      // Total línea y gastos de línea: todas las hojas de FU-001-A y las unidades vigentes de FU-001
       const [{ data: ha }, { data: us }] = await Promise.all([
         sb().from('hojas').select('hoja, sede, alcance, datos').match({ formato: 'FU-001-A', anio: ANIO }).range(0, 4999),
         sb().from('hojas').select('sede, alcance, datos').match({ formato: 'FU-001', hoja: 'marca', anio: ANIO }).range(0, 4999),
@@ -159,9 +162,17 @@ export default function Formatos() {
       })
       const fc = filasA.find((x) => x.hoja === 'corp')
       const corp = fc ? completar(FORMATOS[1].ejemplo('corp'), fc.datos as Partial<Datos>) : null
-      d.C = totalLineaA(sedes, corp, marcas, ife)
-      nt = `Suma de ${sedes.length} sede${sedes.length === 1 ? '' : 's'} (${marcas.length} hojas de marca)${corp ? ' y el Corporativo' : ''}`
-        + (sinGastos.length ? ` · gastos de ejemplo en ${sinGastos.join(', ')}: aún no tienen su consolidado guardado` : '')
+      const fl = filasA.find((x) => x.hoja === 'linea')
+      const base = `${sedes.length} sede${sedes.length === 1 ? '' : 's'} (${marcas.length} hojas de marca)${corp ? ' y el Corporativo' : ''}`
+      const ejGastos = sinGastos.length ? ` · gastos de ejemplo en ${sinGastos.join(', ')}: aún no tienen su consolidado guardado` : ''
+      if (hoja.id === 'total') {
+        const linea = fl ? completar(FORMATOS[1].ejemplo('linea'), fl.datos as Partial<Datos>) : null
+        d.C = totalLineaA(sedes, corp, marcas, ife, linea)
+        nt = `Suma de ${base}${linea ? ', menos los gastos de línea' : ' · sin gastos de línea guardados'}${ejGastos}`
+      } else {
+        d.B = baseNacionalA(sedes, corp, marcas, ife)
+        nt = `Base nacional: ${base}${ejGastos}`
+      }
     } else if (fmt.id === 'FU-001-B' && hoja.id === 'total') {
       const { data: hs } = await sb().from('hojas').select('datos').match({ formato: 'FU-001-B', hoja: 'marca', anio: ANIO })
       if (hs && hs.length) { d.S = sumaMarcasB(hs.map((h) => completar(FORMATOS[2].ejemplo('marca'), h.datos as Partial<Datos>))); nt = `Marketing de marcas: suma de ${hs.length} hoja${hs.length === 1 ? '' : 's'} guardada${hs.length === 1 ? '' : 's'}` }
@@ -185,7 +196,7 @@ export default function Formatos() {
     timer.current = window.setTimeout(async () => {
       setEstado('guardando')
       const { error } = await sb().from('hojas').upsert({
-        formato: fmt.id, linea: fmt.linea, hoja: hoja.id, sede: sedeClave, alcance, anio: ANIO, datos: { P: d.P, M: d.M },
+        formato: fmt.id, linea: fmt.linea, hoja: hoja.id, sede: sedeClave, alcance, anio: ANIO, datos: { P: d.P, M: d.M, ...(d.T ? { T: d.T } : {}) },
       }, { onConflict: 'formato,hoja,sede,alcance,anio' })
       if (claveRef.current === k) setEstado(error ? 'error' : 'guardado')
     }, 700)
@@ -207,6 +218,13 @@ export default function Formatos() {
     return c
   }, [conEnlaces, fmt, hoja, ife, hist, vista])
   const tieneAcumulado = !!fmt.acumular && fmt.acumular(hoja.id, []) !== null
+  const conTabla = !!fmt.tablaPersonal?.(hoja.id)
+  const costo = useMemo<CostoPlan | null>(() => {
+    if (!conTabla || !conEnlaces || !cols) return null
+    const d = conEnlaces
+    if (hoja.id === 'linea') return d.B ? costoPlan(d.T ?? [], { mb: d.B.mb, prima: d.B.prima, lab: d.P.lab, tc: d.P.tc }) : null
+    return costoPlan(d.T ?? [], { mb: cols.slice(0, 12).map((c) => c.mb), lab: d.P.lab, tc: d.P.tc, marcas: d.V ?? [] })
+  }, [conTabla, conEnlaces, cols, hoja])
   const vinculadas = useMemo(() => new Set(Object.keys(enlaces)), [enlaces])
 
   const ESTADO: Record<Estado, string> = {
@@ -303,6 +321,9 @@ export default function Formatos() {
             const M = { ...d.M }; Object.keys(enlaces).forEach((k) => { M[k] = datos.M[k] })
             cambiar({ ...d, M })
           }} />
+          {conTabla && <TablaPersonal tipo={hoja.id === 'linea' ? 'linea' : 'sede'} filas={(conEnlaces!.T ?? []) as Puesto[]}
+            marcas={(conEnlaces!.V ?? []).map((v) => v.marca)} tc={conEnlaces!.P.tc ?? 3.4} costo={costo} editable={puedeEditar}
+            onCambio={(T) => cambiar({ ...datos, T })} onTc={(tc) => cambiar({ ...datos, P: { ...datos.P, tc } })} />}
           <p className="muted small">El número gris al lado de cada rubro es su fila en el Excel. {hist
             ? `La columna «Histórico 2026» es el promedio mensual real del contable (${hist.meses} meses). Headcount, test drives e IF&E todavía no tienen histórico; alquileres, impuestos, seguros, honorarios y electricidad van al consolidado por sede.`
             : fmt.id === 'FU-001' ? 'Esta marca no tiene histórico contable 2026 en esta sede: la columna «Histórico 2026» muestra el ejemplo.'

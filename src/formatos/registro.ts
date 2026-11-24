@@ -1,10 +1,25 @@
 // Registro de formatos: qué hojas tiene cada uno, sus valores de ejemplo, filas y cómo se calcula.
 import { XL, computeCol, FILAS as FILAS001 } from './fu001.js'
-import { XA, LEAF, columnsA, rowsA, rowsTotalA, totalA, acumularA } from './fu001a.js'
+import { XA, LEAF, columnsA, rowsA, rowsTotalA, totalA, acumularA, conPlanSede, baseLineaA, lineaA, aplicarLineaA, rowsLinea } from './fu001a.js'
 import { XB, columnsB, rowsB } from './fu001b.js'
 
 export type Col = Record<string, number>
-export type Datos = { P: Record<string, number>; M: Record<string, number[]>; S?: Record<string, number[]>; C?: Col[] }
+/** Un puesto de la tabla de personal. fijo y monto en S/ al mes; val de % como fracción. */
+export type Puesto = {
+  cargo: string; nombre?: string; fijo: number; tipo: 'ninguno' | 'pctMB' | 'pctPrima' | 'monto'; val: number
+  desde: number; hasta: number; pSede?: string; pDesde?: number; pResto?: number; rep?: 'auto' | Record<string, number>
+}
+/** Base nacional (12 meses) para la hoja de línea y el prorrateo */
+export type BaseNac = { u: number[]; venta: number[]; mb: number[]; prima: Record<string, number[]>; partes: [string, number[]][] }
+export type Datos = {
+  P: Record<string, number>; M: Record<string, number[]>; S?: Record<string, number[]>; C?: Col[]
+  /** tabla de personal (se guarda) */
+  T?: Puesto[]
+  /** facturación de cada marca de la sede, para el reparto (no se guarda) */
+  V?: { marca: string; venta: number[] }[]
+  /** base nacional para la hoja de línea (no se guarda) */
+  B?: BaseNac
+}
 // [id, rubro, tipo, fila Excel, supuesto, extra]
 export type Sup = { k: string; f: 'pct' | 'num' | 'num1'; e?: number; note?: string }
 export type Extra = Record<string, unknown> & {
@@ -14,8 +29,8 @@ export type Extra = Record<string, unknown> & {
 }
 export type Fila = [string, string, string, number?, (Sup | null)?, Extra?]
 
-/** Alcance de una hoja: por sede × marca, consolidado de sede, Canal Corporativo o total sin sede. */
-export type Alcance = 'marca' | 'sede' | 'corp' | 'total'
+/** Alcance de una hoja: por sede × marca, consolidado de sede, Canal Corporativo, gastos de línea o total sin sede. */
+export type Alcance = 'marca' | 'sede' | 'corp' | 'total' | 'linea'
 export interface HojaDef { id: string; nombre: string; alcance: Alcance; descripcion: string }
 export interface FormatoDef {
   id: 'FU-001' | 'FU-001-A' | 'FU-001-B'
@@ -31,6 +46,8 @@ export interface FormatoDef {
   kpis: (hoja: string) => [string, string, 'money' | 'int' | 'pct'][]
   /** hojas de solo lectura que se calculan sumando otras (no se guardan) */
   calculada?: (hoja: string) => boolean
+  /** hojas con tabla de personal */
+  tablaPersonal?: (hoja: string) => boolean
   /** vista acumulada (enero hasta cada mes), para las hojas que la tienen */
   acumular?: (hoja: string, cols: Col[]) => Col[] | null
 }
@@ -74,17 +91,26 @@ const FU001A: FormatoDef = {
     { id: 'marca', nombre: 'Por marca', alcance: 'marca', descripcion: 'Una hoja por cada marca en cada sede. Llega hasta el margen bruto; los gastos se cargan una sola vez en la hoja de la sede.' },
     { id: 'sede', nombre: 'Consolidado por sede', alcance: 'sede', descripcion: 'La parte comercial es la suma de las hojas de marca de la sede. Aquí se cargan todos los gastos de F&I de la sede y sale el margen de contribución.' },
     { id: 'corp', nombre: 'Corporativo', alcance: 'corp', descripcion: 'Hoja completa hasta el margen de contribución, sin sede ni marca. Todo el resultado va a FU-005-C.' },
-    { id: 'total', nombre: 'Total línea IF&E', alcance: 'total', descripcion: 'Toda la línea transversal: suma cada sede (sus marcas más sus gastos) y el Corporativo. Solo lectura; se recalcula con lo que llenan las demás hojas. Abajo, el cuadre: por sede y por marca se llega al mismo total.' },
+    { id: 'linea', nombre: 'Gastos de línea', alcance: 'linea', descripcion: 'Gastos que no son de ninguna sede ni del Canal Corporativo: el personal de la línea a nivel nacional (con su tabla de personal), operación, oficina y representación. Las comisiones se calculan sobre el MB IF&E nacional. En el Total se restan aparte y se prorratean a cada sede y al Corporativo por su facturación de vehículos.' },
+    { id: 'total', nombre: 'Total línea IF&E', alcance: 'total', descripcion: 'Toda la línea transversal: suma cada sede (sus marcas más sus gastos) y el Corporativo. Solo lectura; se recalcula con lo que llenan las demás hojas. Resta los gastos de línea y muestra su prorrateo. Abajo, el cuadre: por sede y por marca se llega al mismo total.' },
   ],
   ejemplo: (h) => h === 'total' ? { P: {}, M: {} } : copia((XA as Record<string, Datos>)[h]),
-  filas: (h) => (h === 'total' ? rowsTotalA() : rowsA(h)) as Fila[],
-  calcular: (h, d, ife) => h === 'total' ? (d.C ?? []) : columnsA(h, d, ife) as unknown as Col[],
+  filas: (h) => (h === 'total' ? rowsTotalA() : h === 'linea' ? rowsLinea() : rowsA(h)) as Fila[],
+  calcular: (h, d, ife) => {
+    if (h === 'total') return d.C ?? []
+    if (h === 'linea') return d.B ? lineaA(d, d.B) as unknown as Col[] : []
+    const c = columnsA(h, d, ife) as unknown as Col[]
+    return h === 'sede' ? conPlanSede(c, d.T ?? [], d.P, ife) as unknown as Col[] : c
+  },
+  tablaPersonal: (h) => h === 'sede' || h === 'linea',
   calculada: (h) => h === 'total',
   acumular: (h, cols) => h === 'total' ? acumularA(cols) as unknown as Col[] : null,
-  nivel: ([id, , t, , , ex = {}]) => (t === 's' || ['u', 'venta', 'IF', 'equip', 'mb', 'gastos', 'mc'].includes(id)) ? 1 : (t === 'g' || ex.l2 || ex.link) ? 2 : 3,
+  nivel: ([id, , t, , , ex = {}]) => (t === 's' || ['u', 'venta', 'IF', 'equip', 'mb', 'gastos', 'mc', 'glin', 'cont', 'prima'].includes(id)) ? 1 : (t === 'g' || ex.l2 || ex.link) ? 2 : 3,
   pct: ([id], c) => c[id],
   kpis: (h) => h === 'marca'
     ? [['Unidades 2027', 'u', 'int'], ['Intermediación', 'IF', 'money'], ['Equipamiento · margen', 'equip', 'money'], ['MB IF&E 2027', 'mb', 'money']]
+    : h === 'linea' ? [['MB IF&E nacional', 'mb', 'money'], ['Personal de línea', 'personal', 'money'], ['Gastos de línea 2027', 'glin', 'money']]
+    : h === 'total' ? [['Unidades 2027', 'u', 'int'], ['MC sedes + Corporativo', 'mc', 'money'], ['Gastos de línea', 'glin', 'money'], ['Contribución línea IF&E', 'cont', 'money']]
     : [['Unidades 2027', 'u', 'int'], ['MB IF&E', 'mb', 'money'], ['Gastos propios', 'gastos', 'money'], ['MC IF&E 2027', 'mc', 'money']],
 }
 
@@ -138,13 +164,26 @@ export function enlacesHacia001(a: Datos | null, b: Datos | null, ife: boolean):
   return out
 }
 
-/** FU-001-A total: cada sede (Σ marcas + gastos) y el Corporativo, con el aporte de cada sede y marca. */
-export function totalLineaA(
-  sedes: { sede: string; datos: Datos }[], corp: Datos | null, marcas: { marca: string; datos: Datos }[], ife: boolean,
-): Col[] {
-  return totalA(
-    sedes.map((s) => ({ sede: s.sede, cols: columnsA('sede', s.datos, ife) })),
-    corp ? columnsA('corp', corp, ife) : null,
-    marcas.map((m) => ({ marca: m.marca, cols: columnsA('marca', m.datos, ife) })),
-  ) as unknown as Col[]
+type Sedes = { sede: string; datos: Datos }[]
+type Marcas = { marca: string; datos: Datos }[]
+/** Suma de sedes (Σ marcas + gastos + tabla de personal) y Corporativo, y la base nacional para la hoja de línea. */
+function nacionalA(sedes: Sedes, corp: Datos | null, marcas: Marcas, ife: boolean) {
+  const sc = sedes.map((s) => ({ sede: s.sede, cols: conPlanSede(columnsA('sede', s.datos, ife), s.datos.T ?? [], s.datos.P, ife) }))
+  const cc = corp ? columnsA('corp', corp, ife) : null
+  const T = totalA(sc, cc, marcas.map((m) => ({ marca: m.marca, cols: columnsA('marca', m.datos, ife) })))
+  return { T, B: baseLineaA(T, sc, cc) as BaseNac }
+}
+/** Base nacional para la hoja «Gastos de línea». */
+export function baseNacionalA(sedes: Sedes, corp: Datos | null, marcas: Marcas, ife: boolean): BaseNac {
+  return nacionalA(sedes, corp, marcas, ife).B
+}
+/** FU-001-A total: cada sede y el Corporativo, menos los gastos de línea, con el prorrateo y el cuadre por sede y marca. */
+export function totalLineaA(sedes: Sedes, corp: Datos | null, marcas: Marcas, ife: boolean, linea: Datos | null): Col[] {
+  const { T, B } = nacionalA(sedes, corp, marcas, ife)
+  const L = lineaA(linea ?? copia((XA as Record<string, Datos>).linea), B)
+  return aplicarLineaA(T, L, B) as unknown as Col[]
+}
+/** Facturación de vehículos de cada marca (12 meses), para repartir la tabla de personal de la sede. */
+export function ventaMarcasA(marcas: Marcas, ife: boolean) {
+  return marcas.map((m) => ({ marca: m.marca, venta: (columnsA('marca', m.datos, ife) as unknown as Col[]).slice(0, 12).map((c) => c.venta || 0) }))
 }
