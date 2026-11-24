@@ -8,6 +8,7 @@ import TablaPersonal, { type CostoPlan } from '../components/TablaPersonal'
 import { costoPlan } from '../formatos/fu001a.js'
 import { FORMATOS, baseNacionalA, enlacesHacia001, sumaMarcasA, sumaMarcasB, totalLineaA, ventaMarcasA, type Col, type Datos, type FormatoDef, type Puesto } from '../formatos/registro'
 import { filas001DesdeHistorico, promedioMensual } from '../formatos/historico'
+import { GS, gastosDesdeHistorico, histSede } from '../formatos/fu001sede.js'
 
 const ANIO = 2027
 type Estado = 'ejemplo' | 'guardado' | 'guardando' | 'pendiente' | 'error'
@@ -102,7 +103,7 @@ export default function Formatos() {
         hs26 = { col: filas001DesdeHistorico(promedioMensual(h as { cuenta: string; monto: number }[], meses)), meses, corte: info.corte || '' }
       }
     }
-    if (fmt.id === 'FU-001') {
+    if (fmt.id === 'FU-001' && hoja.alcance === 'marca') {
       const [a, b] = await Promise.all(['FU-001-A', 'FU-001-B'].map((f) =>
         sb().from('hojas').select('datos').match({ formato: f, hoja: 'marca', sede: sedeOk, alcance: marcaOk, anio: ANIO }).maybeSingle()))
       const da = a.data ? completar(FORMATOS[1].ejemplo('marca'), a.data.datos as Partial<Datos>) : null
@@ -110,6 +111,52 @@ export default function Formatos() {
       fuentesCarga = { a: da, b: db }
       nt = [da ? 'IF&E llega de FU-001-A' : 'IF&E: valores de ejemplo (aún no hay hoja FU-001-A de esta marca)',
             db ? 'marketing llega de FU-001-B' : 'marketing: valores de ejemplo (aún no hay hoja FU-001-B)'].join(' · ')
+    } else if (fmt.id === 'FU-001' && hoja.id === 'sede') {
+      // Consolidado por sede de Unidades: hojas de marca de la sede (con sus enlaces de IF&E y marketing),
+      // consolidado de IF&E de la sede (check Integrado) e histórico real de toda la sede
+      const [{ data: u1 }, { data: a1 }, { data: b1 }, { data: aj }] = await Promise.all([
+        sb().from('hojas').select('alcance, datos').match({ formato: 'FU-001', hoja: 'marca', sede: sedeOk, anio: ANIO }),
+        sb().from('hojas').select('hoja, alcance, datos').match({ formato: 'FU-001-A', sede: sedeOk, anio: ANIO }),
+        sb().from('hojas').select('alcance, datos').match({ formato: 'FU-001-B', hoja: 'marca', sede: sedeOk, anio: ANIO }),
+        sb().from('ajustes').select('valor').eq('clave', 'historico_2026').maybeSingle(),
+      ])
+      const u001 = new Map((u1 ?? []).map((x) => [x.alcance as string, completar(FORMATOS[0].ejemplo('marca'), x.datos as Partial<Datos>)]))
+      const conU = (alc: string, dd: Datos): Datos => {
+        const f = u001.get(alc); if (!f) return dd
+        return { ...dd, P: { ...dd.P, ticket: f.P.ticket }, M: { ...dd.M, units: [...f.M.units.slice(0, 12), dd.M.units?.[12] ?? 0] } }
+      }
+      const aM = new Map((a1 ?? []).filter((x) => x.hoja === 'marca').map((x) => [x.alcance as string, conU(x.alcance as string, completar(FORMATOS[1].ejemplo('marca'), x.datos as Partial<Datos>))]))
+      const bM = new Map((b1 ?? []).map((x) => [x.alcance as string, completar(FORMATOS[2].ejemplo('marca'), x.datos as Partial<Datos>)]))
+      const orden = cat?.marcas ?? []
+      const lista = [...u001.entries()].map(([marca, du]) => {
+        const dd: Datos = { ...du, M: { ...du.M, ...enlacesHacia001(aM.get(marca) ?? null, bM.get(marca) ?? null, ife) } }
+        return { marca, cols: FORMATOS[0].calcular('marca', dd, ife) }
+      }).sort((x, y) => orden.indexOf(x.marca) - orden.indexOf(y.marca))
+      d.X = lista
+      d.V = lista.map((m) => ({ marca: m.marca, venta: m.cols.slice(0, 12).map((c) => c.venta || 0) }))
+      const sA = (a1 ?? []).find((x) => x.hoja === 'sede')
+      let notaIfe = ''
+      if (ife && (sA || aM.size)) {
+        const dA = completar(FORMATOS[1].ejemplo('sede'), (sA?.datos as Partial<Datos>) ?? null)
+        if (aM.size) dA.S = sumaMarcasA([...aM.values()], ife)
+        d.IG = FORMATOS[1].calcular('sede', dA, true).slice(0, 12).map((c) => c.gastos || 0)
+        notaIfe = sA ? ' · IF&E: consolidado de la sede guardado' : ' · IF&E: gastos de ejemplo (la sede aún no guarda su consolidado de IF&E)'
+      }
+      // histórico real de toda la sede (paginado: la base devuelve hasta 1000 filas por consulta)
+      const hfil: { cuenta: string; monto: number }[] = []
+      for (let i = 0; ; i += 1000) {
+        const { data: hp } = await sb().from('historico').select('cuenta, monto').match({ formato: 'FU-001', sede: sedeOk, anio: 2026 }).range(i, i + 999)
+        if (!hp?.length) break
+        hfil.push(...(hp as { cuenta: string; monto: number }[])); if (hp.length < 1000) break
+      }
+      const info = (aj?.valor ?? {}) as { meses?: number; corte?: string }
+      let precarga = ''
+      if (hfil.length) {
+        const meses = info.meses || 8, gas = gastosDesdeHistorico(hfil, meses) as Record<string, number>
+        hs26 = { col: histSede(filas001DesdeHistorico(promedioMensual(hfil, meses)), gas) as unknown as Col, meses, corte: info.corte || '' }
+        if (!data) { (GS as [string][]).forEach(([id]) => { const v = Math.round(gas[id] || 0); d.M[id] = [...Array(12).fill(v), v] }); precarga = ' · gastos de la sede precargados con su promedio real 2026' }
+      }
+      nt = (lista.length ? `Comercial: suma de ${lista.length} hoja${lista.length === 1 ? '' : 's'} de marca guardada${lista.length === 1 ? '' : 's'}` : 'Comercial: aún no hay hojas de marca guardadas en esta sede') + notaIfe + precarga
     } else if (fmt.id === 'FU-001-A' && hoja.id === 'marca') {
       // unidades y ticket llegan de FU-001 de la misma sede y marca
       const { data: u } = await sb().from('hojas').select('datos').match({ formato: 'FU-001', hoja: 'marca', sede: sedeOk, alcance: marcaOk, anio: ANIO }).maybeSingle()
@@ -321,7 +368,7 @@ export default function Formatos() {
             const M = { ...d.M }; Object.keys(enlaces).forEach((k) => { M[k] = datos.M[k] })
             cambiar({ ...d, M })
           }} />
-          {conTabla && <TablaPersonal tipo={hoja.id === 'linea' ? 'linea' : fmt.id === 'FU-001-B' ? 'marketing' : 'sede'} filas={(conEnlaces!.T ?? []) as Puesto[]}
+          {conTabla && <TablaPersonal tipo={hoja.id === 'linea' ? 'linea' : fmt.id === 'FU-001-B' ? 'marketing' : fmt.id === 'FU-001' ? 'usede' : 'sede'} filas={(conEnlaces!.T ?? []) as Puesto[]}
             marcas={(conEnlaces!.V ?? []).map((v) => v.marca)} tc={conEnlaces!.P.tc ?? 3.4} costo={costo} editable={puedeEditar}
             onCambio={(T) => cambiar({ ...datos, T })} onTc={(tc) => cambiar({ ...datos, P: { ...datos.P, tc } })} />}
           <p className="muted small">El número gris al lado de cada rubro es su fila en el Excel. {hist

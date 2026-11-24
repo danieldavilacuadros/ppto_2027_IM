@@ -29,7 +29,7 @@ interface Props {
 
 /** Tabla de llenado de una hoja: rubro, supuesto, 12 meses, año e histórico. */
 export default function Hoja({ fmt, hoja, datos, cols, ife, editable, nivel, vinculadas, histReal, onCambio }: Props) {
-  const filas = useMemo(() => fmt.filas(hoja), [fmt, hoja])
+  const filas = useMemo(() => fmt.filas(hoja, datos), [fmt, hoja, datos])
 
   const setP = (k: string, f: string, txt: string) => {
     const v = leer(txt)

@@ -2,6 +2,7 @@
 import { XL, computeCol, FILAS as FILAS001 } from './fu001.js'
 import { XA, LEAF, columnsA, rowsA, rowsTotalA, totalA, acumularA, conPlanSede, baseLineaA, lineaA, aplicarLineaA, rowsLinea } from './fu001a.js'
 import { XB, columnsB, rowsB, conPlanB } from './fu001b.js'
+import { XU, computeSede, rowsSede } from './fu001sede.js'
 
 export type Col = Record<string, number>
 /** Un puesto de la tabla de personal. fijo y monto en S/ al mes; val de % como fracción. */
@@ -19,6 +20,10 @@ export type Datos = {
   V?: { marca: string; venta: number[] }[]
   /** base nacional para la hoja de línea (no se guarda) */
   B?: BaseNac
+  /** FU-001 sede: columnas de cada hoja de marca de la sede (no se guarda) */
+  X?: { marca: string; cols: Col[] }[]
+  /** FU-001 sede: gastos del consolidado de IF&E de la sede, 12 meses (no se guarda) */
+  IG?: number[]
 }
 // [id, rubro, tipo, fila Excel, supuesto, extra]
 export type Sup = { k: string; f: 'pct' | 'num' | 'num1'; e?: number; note?: string }
@@ -38,7 +43,7 @@ export interface FormatoDef {
   linea: 'unidades' | 'ife' | 'marketing'
   hojas: HojaDef[]
   ejemplo: (hoja: string) => Datos
-  filas: (hoja: string) => Fila[]
+  filas: (hoja: string, d?: Datos) => Fila[]
   calcular: (hoja: string, d: Datos, ife: boolean) => Col[]
   nivel: (f: Fila) => 1 | 2 | 3
   /** fila tipo 'p': valor a mostrar */
@@ -71,17 +76,22 @@ function calcular001(_h: string, d: Datos, ife: boolean): Col[] {
 
 const FU001: FormatoDef = {
   id: 'FU-001', nombre: 'Unidades', linea: 'unidades',
-  hojas: [{ id: 'marca', nombre: 'Por sede × marca', alcance: 'marca', descripcion: 'Una hoja por cada marca en cada sede. Solo se llenan las celdas amarillas.' }],
-  ejemplo: () => {
+  hojas: [
+    { id: 'marca', nombre: 'Por sede × marca', alcance: 'marca', descripcion: 'Una hoja por cada marca en cada sede. Solo se llenan las celdas amarillas.' },
+    { id: 'sede', nombre: 'Consolidado por sede', alcance: 'sede', descripcion: 'Lo llena el jefe de sede. Suma las hojas de marca de la sede; con el check Integrado resta los gastos de IF&E de la sede; abajo van los gastos propios de la sede (personal de sede, alquileres, servicios, gestión, impuestos, seguros y honorarios) hasta la utilidad de la sede. Los gastos se reparten a las marcas por su facturación de vehículos (criterio provisional). La depreciación va al esquema de empresa.' },
+  ],
+  ejemplo: (h) => {
+    if (h === 'sede') return copia(XU as Datos)
     const M: Record<string, number[]> = {}
     for (const k in XL.M) M[k] = trece((XL.M as Record<string, number>)[k])
     return { P: copia(XL.P), M }
   },
-  filas: () => FILAS001 as Fila[],
-  calcular: calcular001,
-  nivel: ([id, , t, , , ex = {}]) => (t === 's' || id === 'u' || id === 'venta') ? 1 : (ex.ind || t === 'po') ? 3 : 2,
-  pct: ([id], c) => c[id] / c.venta,
-  kpis: () => [['Unidades 2027', 'u', 'int'], ['Venta 2027', 'venta', 'money'], ['MB 3', 'mb3', 'money'], ['Gastos de operación', 'gop', 'money'], ['Margen de contribución', 'mc', 'money']],
+  filas: (h, d) => (h === 'sede' ? rowsSede((d?.X ?? []).map((m) => m.marca)) : FILAS001) as Fila[],
+  calcular: (h, d, ife) => h === 'sede' ? computeSede(d, d.X ?? [], d.IG ?? []) as unknown as Col[] : calcular001(h, d, ife),
+  tablaPersonal: (h) => h === 'sede',
+  nivel: ([id, , t, , , ex = {}]) => (t === 's' || id === 'u' || id === 'venta') ? 1 : ex.l2 ? 2 : (ex.ind || t === 'po') ? 3 : 2,
+  pct: ([id, , , , , ex = {}], c) => ex.part ? c[id] : c[id] / c.venta,
+  kpis: (h) => h === 'sede' ? [['Unidades 2027', 'u', 'int'], ['Contribución del negocio', 'cneg', 'money'], ['Gastos de la sede', 'gsede', 'money'], ['Utilidad de la sede 2027', 'usede', 'money']] : [['Unidades 2027', 'u', 'int'], ['Venta 2027', 'venta', 'money'], ['MB 3', 'mb3', 'money'], ['Gastos de operación', 'gop', 'money'], ['Margen de contribución', 'mc', 'money']],
 }
 
 // ───────── FU-001-A ─────────
