@@ -29,7 +29,7 @@ function linea(P,m){
   r.fint=P.interplaza*r.venta; r.flet=r.fint; r.mb2=r.mb1+r.flet;
   r.alqIng=Number(m.alqIng)||0; r.soat=Number(m.soat)||0; r.gps=Number(m.gps)||0;
   r.alqImp=P.alqImp*r.alqIng; r.alqRep=P.alqRep*r.alqIng;
-  r.alqG=r.soat+r.gps+r.alqImp+r.alqRep; r.alqV=r.alqIng+r.alqG;
+  r.alqGas=r.soat+r.gps+r.alqImp+r.alqRep; r.alqV=r.alqIng+r.alqGas; // alqGas: no confundir con el grupo «alqG» de los gastos de la sede
   r.plv=P.placaV*u; r.plc=P.placaC*u; r.placas=r.plv+r.plc;
   r.mb3=r.mb2+r.alqV+r.placas;
   r.hcV=P.ventasVend?u/P.ventasVend:0; r.sueldosV=Number(m.sueldosV)||0; r.comV=P.comV*r.mb2;
@@ -75,7 +75,7 @@ export function rowsS(){
     ['mb2','','p'],
     ['alqV','Alquileres vehiculares','g'],
     ['alqIng','(+) Ingreso por alquiler','in',null,null,{ind:1,m:'alqIng',note:'Monto del mes (US$)'}],
-    ['alqG','(−) Gastos por alquiler','c',null,null,{ind:1,l2:1}],
+    ['alqGas','(−) Gastos por alquiler','c',null,null,{ind:1,l2:1}],
     ['soat','SOAT','in',null,null,{ind:2,m:'soat',note:'Monto del mes (US$, en negativo)'}],
     ['gps','GPS','in',null,null,{ind:2,m:'gps',note:'Monto del mes (US$, en negativo)'}],
     ['alqImp','Impuestos y gastos varios','c',null,{k:'alqImp',f:'pct',e:1,note:'% del ingreso por alquiler'},{ind:2}],
