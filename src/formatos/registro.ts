@@ -159,7 +159,7 @@ export function sumaMarcasA(hojasMarca: Datos[], ife: boolean): Record<string, n
 /** FU-001-B total: gasto y recobro de todas las hojas por sede × marca. */
 export function sumaMarcasB(hojasMarca: Datos[]): Record<string, number[]> {
   const cols = hojasMarca.map((d) => columnsB('marca', d) as unknown as Col[])
-  return { gas: SUMA13(cols.map((c) => a13(c, 'gas'))), rec: SUMA13(cols.map((c) => a13(c, 'rec'))) }
+  return { gas: SUMA13(cols.map((c) => a13(c, 'gas'))), rec: SUMA13(cols.map((c) => a13(c, 'rec'))), kit: SUMA13(cols.map((c) => a13(c, 'kit'))) }
 }
 /** FU-001: intermediación y equipamiento llegan de FU-001-A; marketing y recobro de FU-001-B. */
 export function enlacesHacia001(a: Datos | null, b: Datos | null, ife: boolean): Record<string, number[]> {
@@ -170,7 +170,7 @@ export function enlacesHacia001(a: Datos | null, b: Datos | null, ife: boolean):
   }
   if (b) {
     const c = columnsB('marca', b) as unknown as Col[]
-    out.mktG = a13(c, 'gas'); out.recM = a13(c, 'rec')
+    out.mktG = a13(c, 'gas'); out.recM = a13(c, 'rec'); out.kitM = a13(c, 'kit')
   }
   return out
 }

@@ -2,15 +2,16 @@
 /* eslint-disable */
 import { costoPlan } from './personal.js';
 export const XB={ // valores del Excel FU-001-B (CUSCO · Hyundai; total = suma de ejemplo)
- marca:{P:{},M:{gas:[-25000.0,-22000.0,-24000.0,-26000.0,-25000.0,-23000.0,-27000.0,-28000.0,-25000.0,-26000.0,-30000.0,-32000.0,-24000.0],rec:[12250.0,11000.0,12000.0,13000.0,12500.0,11500.0,13500.0,14000.0,12500.0,13000.0,15000.0,16000.0,11500.0]}},
- total:{T:[],P:{tc:3.4,hc:3.0,sueldo:-882.352941176,bono:0.1,lab:0.4,equipo:-55.0,agencias:-1500.0,software:-400.0,otros:-100.0,mob:-50.0,agua:-40.0},M:{viajes:[-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0],atenc:[-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0]},S:{gas:[-175000.0,-154000.0,-168000.0,-182000.0,-175000.0,-161000.0,-189000.0,-196000.0,-175000.0,-182000.0,-210000.0,-224000.0,-168000.0],rec:[85750.0,77000.0,84000.0,91000.0,87500.0,80500.0,94500.0,98000.0,87500.0,91000.0,105000.0,112000.0,80500.0]}}
+ marca:{P:{},M:{gas:[-25000.0,-22000.0,-24000.0,-26000.0,-25000.0,-23000.0,-27000.0,-28000.0,-25000.0,-26000.0,-30000.0,-32000.0,-24000.0],rec:[12250.0,11000.0,12000.0,13000.0,12500.0,11500.0,13500.0,14000.0,12500.0,13000.0,15000.0,16000.0,11500.0],kit:Array(13).fill(0)}},
+ total:{T:[],P:{tc:3.4,hc:3.0,sueldo:-882.352941176,bono:0.1,lab:0.4,equipo:-55.0,agencias:-1500.0,software:-400.0,otros:-100.0,mob:-50.0,agua:-40.0},M:{viajes:[-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0],atenc:[-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0]},S:{gas:[-175000.0,-154000.0,-168000.0,-182000.0,-175000.0,-161000.0,-189000.0,-196000.0,-175000.0,-182000.0,-210000.0,-224000.0,-168000.0],rec:[85750.0,77000.0,84000.0,91000.0,87500.0,80500.0,94500.0,98000.0,87500.0,91000.0,105000.0,112000.0,80500.0],kit:Array(13).fill(0)}}
 };
 
 export function computeB(kind,P,m){
   const r={};
-  if(kind==='marca'){ r.gas=m.gas; r.rec=m.rec; }
-  else { r.gas=m.s_gas; r.rec=m.s_rec; }
-  r.neto=r.gas+r.rec;
+  // kit de bienvenida: siempre es gasto (se acepta escrito en positivo o negativo); no entra al % de recobro
+  if(kind==='marca'){ r.gas=m.gas; r.rec=m.rec; r.kit=-Math.abs(Number(m.kit)||0); }
+  else { r.gas=m.s_gas; r.rec=m.s_rec; r.kit=Number(m.s_kit)||0; }
+  r.neto=r.gas+r.rec+r.kit;
   if(kind==='total'){
     r.hc=P.hc; r.sueldo=P.sueldo*r.hc; r.bono=P.bono*r.sueldo; r.lab=(r.sueldo+r.bono)*P.lab; r.equipo=P.equipo*r.hc;
     r.personal=r.sueldo+r.bono+r.lab+r.equipo;
@@ -19,7 +20,7 @@ export function computeB(kind,P,m){
     r.viajes=m.viajes; r.atenc=m.atenc; r.repr=r.viajes+r.atenc;
     r.area=r.personal+r.oper+r.tienda+r.repr; r.total=r.neto+r.area;
     r.e001=r.neto; r.e003=r.area;
-  } else { r.e55=r.gas; r.e56=r.rec; r.eNet=r.neto; }
+  } else { r.e55=r.gas; r.e56=r.rec; r.eKit=r.kit; r.eNet=r.neto; }
   pctsB(r); return r;
 }
 function pctsB(r){ r.pctRec=r.gas?-r.rec/r.gas:0; if(r.total!=null)r.pctArea=r.total?r.area/r.total:0; }
@@ -40,11 +41,13 @@ export function rowsB(k){
       ['','Marketing de la marca','sec'],
       ['gas','(−) Gastos de marketing','in',8,null,{m:'gas',note:'Plan de medios, eventos, activaciones y material de la marca en la sede'}],
       ['rec','(+) Recobro de marca','in',9,null,{m:'rec',note:'Lo que la marca reembolsa del plan'}],
+      ['kit','(−) Kit de bienvenida','in',null,null,{m:'kit',note:'Monto del mes en US$ (kits que se entregan con las unidades); siempre resta y no tiene recobro'}],
       ['neto','Neto marketing de la marca','s',11,null,{cls:'mc'}],
       ['pctRec','% de recobro sobre el gasto','p'],
       ['','Enlace con FU-001','sec'],
       ['e55','→ FU-001 · fila 55 · (−) Gastos de marketing','c',15,null,{ind:1,link:1}],
       ['e56','→ FU-001 · fila 56 · (+) Recobro de marca','c',16,null,{ind:1,link:1}],
+      ['eKit','→ FU-001 · (−) Kit de bienvenida','c',null,null,{ind:1,link:1}],
       ['eNet','→ Marketing total · neto de la marca','c',17,null,{ind:1,link:1}]
     ];
     const sum={src:'FU-001-B',sum:1};
@@ -52,6 +55,7 @@ export function rowsB(k){
       ['','Marketing de marcas · suma de las hojas por sede × marca','sec'],
       ['gas','(−) Gastos de marketing de las marcas','c',8,null,Object.assign({ind:1},sum)],
       ['rec','(+) Recobro de las marcas','c',9,null,Object.assign({ind:1},sum)],
+      ['kit','(−) Kits de bienvenida de las marcas','c',null,null,Object.assign({ind:1},sum)],
       ['neto','Neto marketing de marcas','g',10],
       ['pctRec','% de recobro sobre el gasto','p'],
       ['','Gastos del área de marketing · se cargan una sola vez','sec'],

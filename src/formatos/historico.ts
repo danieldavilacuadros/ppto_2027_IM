@@ -15,7 +15,7 @@ export function filas001DesdeHistorico(L: Record<string, number>): Col {
   r.hc = NaN // sin histórico de headcount
   r.sueldos = g('sueldos'); r.com = g('com'); r.inc = 0; r.lab = g('lab'); r.eqs = g('eqs')
   r.personal = r.sueldos + r.com + r.inc + r.lab + r.eqs
-  r.mktG = g('mktG'); r.recM = g('recM'); r.clk = g('clk'); r.mkt = r.mktG + r.recM + r.clk
+  r.mktG = g('mktG'); r.recM = g('recM'); r.kitM = 0; r.clk = g('clk'); r.mkt = r.mktG + r.recM + r.kitM + r.clk
   r.lav = g('lav'); r.repl = g('repl'); r.agua = g('agua'); r.segu = g('segu'); r.limp = 0 // limpieza viene junto con seguridad
   r.tienda = r.lav + r.repl + r.agua + r.segu + r.limp
   r.rnc = g('rnc'); r.rpdi = 0; r.pdi = r.rnc + r.rpdi

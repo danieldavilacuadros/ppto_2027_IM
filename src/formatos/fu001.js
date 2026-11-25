@@ -25,7 +25,7 @@ export function computeCol(P,m,ife){ // m = valores de un mes (o del histórico)
   r.hc=P.ventasVend?u/P.ventasVend:0; r.sueldos=P.sueldos; r.com=P.comPct*r.mb2; r.inc=P.incPct*(r.IF+r.equip);
   r.lab=(r.sueldos+r.com+r.inc)*P.factorLab; r.eqs=P.equipoHC*r.hc;
   r.personal=r.sueldos+r.com+r.inc+r.lab+r.eqs;
-  r.mktG=m.mktG; r.recM=m.recM; r.clk=P.clicker*r.venta; r.mkt=r.mktG+r.recM+r.clk;
+  r.mktG=m.mktG; r.recM=m.recM; r.kitM=m.kitM||0; r.clk=P.clicker*r.venta; r.mkt=r.mktG+r.recM+r.kitM+r.clk;
   r.lav=P.lavado*u; r.repl=P.repLocal*u; r.agua=P.agua; r.segu=P.seguridad; r.limp=P.limpieza;
   r.tienda=r.lav+r.repl+r.agua+r.segu+r.limp;
   r.rnc=P.repNC*r.venta; r.rpdi=P.recPDI*r.venta; r.pdi=r.rnc+r.rpdi;
@@ -83,6 +83,7 @@ export const FILAS=[
     ['mkt','Marketing','g',54],
     ['mktG','(−) Gastos de marketing','c',55,null,{ind:1,src:'FU-001-B'}],
     ['recM','(+) Recobro de marca','c',56,null,{ind:1,src:'FU-001-B'}],
+    ['kitM','(−) Kit de bienvenida','c',null,null,{ind:1,src:'FU-001-B',note:'Viene de la hoja de la marca en Marketing'}],
     ['clk','(−) Canal digital · Clicker','c',57,{k:'clicker',f:'pct',e:1,note:'Factor empresa 2026, sobre la venta'},{ind:1}],
     ['tienda','Gestión de tienda','g',59],
     ['lav','Lavado de showroom','c',60,{k:'lavado',f:'num',e:1,note:'Por unidad, si es tercero'},{ind:1}],
