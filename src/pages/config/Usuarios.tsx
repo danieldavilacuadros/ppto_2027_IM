@@ -6,7 +6,7 @@ import type { Perfil, Rol } from '../../lib/tipos'
 import type { useConfig } from './datos'
 
 type Cfg = ReturnType<typeof useConfig>
-const ROLES: [Rol, string][] = [['usuario', 'Usuario'], ['subadministrador', 'Subadministrador'], ['administrador', 'Administrador']]
+const ROLES: [Rol, string][] = [['usuario', 'Usuario'], ['gerente', 'Gerente general'], ['subadministrador', 'Subadministrador'], ['administrador', 'Administrador']]
 const ESTADO: Record<string, [string, string]> = {
   sin_invitar: ['Sin invitar', 'tg'],
   invitado: ['Invitado', 'tg v'],
@@ -72,7 +72,7 @@ export default function Usuarios({ cfg }: { cfg: Cfg }) {
                   </select></td>
                   <td><input type="checkbox" checked={p.activo} disabled={bloqueado || p.id === yo?.id} aria-label="Activo"
                     onChange={(e) => void guardar(p, { activo: e.target.checked })} /></td>
-                  <td><span className="tg">{p.rol === 'usuario' ? resumen(p.id) : 'Todo (administración)'}</span></td>
+                  <td><span className="tg">{p.rol === 'usuario' ? resumen(p.id) : p.rol === 'gerente' ? 'Todo, solo lectura · Resumen' : 'Todo (administración)'}</span></td>
                   <td className="nowrap">
                     <button className="btn sm" onClick={() => nav(`../permisos?u=${p.id}`)} disabled={p.rol !== 'usuario'}>Permisos</button>{' '}
                     {esAdminTotal && est === 'sin_invitar' && p.id !== yo?.id &&

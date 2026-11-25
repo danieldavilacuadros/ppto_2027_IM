@@ -9,7 +9,7 @@ import { claveAcceso, type Acceso, type Jefatura } from './tipos'
  * La base de datos aplica lo mismo con RLS.
  */
 export function usePermisos() {
-  const { perfil, esAdmin, verComo } = useSesion()
+  const { perfil, esAdmin, esGerente, verComo } = useSesion()
   const [accesos, setAccesos] = useState<Map<string, boolean> | null>(null)
   const [jefaturas, setJefaturas] = useState<Jefatura[]>([])
   const previa = esAdmin && !!verComo
@@ -19,16 +19,17 @@ export function usePermisos() {
   useEffect(() => {
     if (!perfil) return
     sb().from('jefaturas').select('*').then(({ data }) => setJefaturas((data ?? []) as Jefatura[]))
-    if (todo) { setAccesos(new Map()); return }
+    if (todo || esGerente) { setAccesos(new Map()); return }
     setAccesos(null)
     sb().from('accesos').select('*').eq('perfil_id', quien!).then(({ data }) => {
       const m = new Map<string, boolean>()
       ;((data ?? []) as Acceso[]).forEach((a) => m.set(claveAcceso(a.linea, a.sede, a.alcance), a.puede_editar))
       setAccesos(m)
     })
-  }, [perfil, todo, quien])
+  }, [perfil, todo, quien, esGerente])
 
-  const ver = (linea: string, sede: string, alcance: string) => todo || (accesos?.has(claveAcceso(linea, sede, alcance)) ?? false)
+  // gerencia general: ve todo, no edita nada
+  const ver = (linea: string, sede: string, alcance: string) => todo || esGerente || (accesos?.has(claveAcceso(linea, sede, alcance)) ?? false)
   /** Lo que el usuario (o el usuario elegido en «Ver como») podría editar */
   const podriaEditar = (linea: string, sede: string, alcance: string) => todo || (accesos?.get(claveAcceso(linea, sede, alcance)) ?? false)
   /** Lo que se puede editar ahora en pantalla (en «Ver como» nada) */

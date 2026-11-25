@@ -321,3 +321,27 @@ table.tpers-t{min-width:1150px}
 .prep div{border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--surface);font-size:12.5px;min-width:150px}
 .prep b{display:block;font-size:15px;font-variant-numeric:tabular-nums}
 .prep small{color:var(--muted)}
+/* Resumen de gerencia */
+.res-head{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:flex-end;justify-content:space-between}
+.res-head h2{margin:0 0 4px}
+.res-ctl{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+.res-ctl .ctx select{min-width:150px}
+.res-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.res-acc{display:flex;gap:6px}
+.sheet.res .c-rub{min-width:340px;max-width:420px}
+.sheet.res td{font-variant-numeric:tabular-nums}
+.res-n{display:flex;gap:6px;align-items:flex-start}
+.res-n span{display:flex;flex-direction:column;gap:2px}
+.res-n small{font-size:11.5px;color:var(--muted);font-weight:400}
+.res-n b{font-weight:600}
+.res-t{width:20px;flex:none;border:0;background:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 0;font-style:normal}
+.res-t:focus-visible{outline:2px solid var(--oro);outline-offset:1px}
+.sheet.res tr.res-l1 b,.sheet.res tr.res-l2 b{font-weight:400}
+.sheet.res tr.res-l1 td{background:color-mix(in srgb,var(--bg) 35%,var(--surface))}
+.sheet.res tr.res-l1 td.c-rub,.sheet.res tr.res-l2 td.c-rub{background:inherit}
+.sheet.res tr.res-l2 td{color:var(--muted)}
+.sheet.res tr.sub td{background:var(--sub-f, var(--bg));font-weight:700}
+.sheet.res tr.total td{background:var(--card);font-weight:700;border-top:2px solid var(--oro-linea);color:var(--oro-texto)}
+.sheet.res tr.ajuste b{font-style:italic}
+.sheet.res tr.pend td{color:var(--muted)}
+.res-notas{display:flex;flex-direction:column;gap:6px;padding-left:18px;margin:8px 0 14px}

@@ -1,4 +1,4 @@
-export type Rol = 'administrador' | 'subadministrador' | 'usuario'
+export type Rol = 'administrador' | 'subadministrador' | 'gerente' | 'usuario'
 
 export interface Perfil {
   id: string

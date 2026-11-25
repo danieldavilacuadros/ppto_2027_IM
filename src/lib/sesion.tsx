@@ -9,6 +9,10 @@ interface Ctx {
   perfil: Perfil | null
   esAdmin: boolean
   esAdminTotal: boolean
+  /** gerente general: ve todo en solo lectura y el Resumen */
+  esGerente: boolean
+  /** quién ve la pestaña Resumen: administración y gerencia general */
+  veResumen: boolean
   salir: () => Promise<void>
   recargarPerfil: () => Promise<void>
   /** Administración: usuarios que se pueden elegir en «Ver como» */
@@ -72,6 +76,8 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   const value: Ctx = {
     cargando, session, perfil, esAdmin,
     esAdminTotal: rol === 'administrador',
+    esGerente: rol === 'gerente',
+    veResumen: esAdmin || rol === 'gerente',
     salir: async () => { try { sessionStorage.removeItem('ppto-ver-como') } catch { /* nada */ } setVerComoId(''); await supabase?.auth.signOut(); setPerfil(null) },
     recargarPerfil: () => cargarPerfil(session),
     usuarios, verComo,

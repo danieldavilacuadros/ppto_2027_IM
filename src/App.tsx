@@ -7,12 +7,14 @@ import Configuracion from './pages/config/Configuracion'
 import Formatos from './pages/Formatos'
 import Ayuda from './pages/Ayuda'
 import Cuenta from './pages/Cuenta'
+import Resumen from './pages/Resumen'
 import { VerComoAviso } from './components/VerComo'
 
 export default function App() {
-  const { cargando, session, perfil, esAdmin, salir } = useSesion()
+  const { cargando, session, perfil, esAdmin, veResumen, salir } = useSesion()
   // Formatos usa todo el ancho de la pantalla para que la hoja muestre más meses
-  const ancho = useLocation().pathname.startsWith('/formatos')
+  const ruta = useLocation().pathname
+  const ancho = ruta.startsWith('/formatos') || ruta.startsWith('/resumen')
 
   if (!supabase) return <SinConfiguracion />
   if (cargando) return <div className="centro"><p className="muted">Cargando…</p></div>
@@ -49,6 +51,7 @@ export default function App() {
         <div className="marca"><b>Presupuesto 2027</b><span>Incamotors</span></div>
         <nav className="tabs" aria-label="Secciones">
           <NavLink to="/" end>Inicio</NavLink>
+          {veResumen && <NavLink to="/resumen">Resumen</NavLink>}
           <NavLink to="/formatos">Formatos</NavLink>
           <NavLink to="/ayuda">Ayuda</NavLink>
           {esAdmin && <NavLink to="/configuracion">Configuración</NavLink>}
@@ -63,6 +66,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Inicio />} />
           <Route path="/formatos" element={<Formatos />} />
+          <Route path="/resumen" element={veResumen ? <Resumen /> : <Navigate to="/" replace />} />
           <Route path="/ayuda" element={<Ayuda />} />
           <Route path="/cuenta" element={<Cuenta />} />
           <Route path="/configuracion/*" element={esAdmin ? <Configuracion /> : <Navigate to="/" replace />} />

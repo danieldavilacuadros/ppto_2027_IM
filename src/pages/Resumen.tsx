@@ -1,0 +1,146 @@
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { sb } from '../lib/supabase'
+import { useCatalogo } from '../lib/catalogo'
+import { money, pct, entero } from '../components/Hoja'
+import { calcularResumen, type HojaBD, type Nodo, type Serie } from '../resumen/motor'
+
+const ANIO = 2027
+const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Set', 'Oct', 'Nov', 'Dic']
+type Vista = 'negocio' | 'sede' | 'marca'
+const leerLS = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d } catch { return d } }
+const recordar = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* sin almacenamiento */ } }
+
+/** Pestaña de gerencia general: presupuesto de toda la empresa, por negocio, sede y marca. Solo lectura. */
+export default function Resumen() {
+  const { cat } = useCatalogo()
+  const [ife, setIfe] = useState(() => leerLS('ppto-res-ife', '1') === '1')
+  const [vista, setVista] = useState<Vista>(() => leerLS('ppto-res-vista', 'negocio') as Vista)
+  const [mes, setMes] = useState(12) // 12 = año
+  const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
+  const [base, setBase] = useState<{ hojas: HojaBD[]; hist: Map<string, { cuenta: string; monto: number }[]>; meses: number } | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let vivo = true
+    ;(async () => {
+      const [{ data: hs, error: e1 }, { data: aj }] = await Promise.all([
+        sb().from('hojas').select('formato, hoja, sede, alcance, datos').eq('anio', ANIO).range(0, 4999),
+        sb().from('ajustes').select('valor').eq('clave', 'historico_2026').maybeSingle(),
+      ])
+      if (e1) { if (vivo) setError(e1.message); return }
+      // cuentas de gastos de sede del histórico 2026 (para precargar los consolidados que aún no se guardan)
+      const hist = new Map<string, { cuenta: string; monto: number }[]>()
+      for (let i = 0; ; i += 1000) {
+        const { data: hp } = await sb().from('historico').select('sede, cuenta, monto').match({ formato: 'FU-001', anio: 2026 }).like('cuenta', 'SEDE:%').range(i, i + 999)
+        if (!hp?.length) break
+        hp.forEach((r) => { const k = r.sede as string; if (!hist.has(k)) hist.set(k, []); hist.get(k)!.push({ cuenta: r.cuenta as string, monto: Number(r.monto) }) })
+        if (hp.length < 1000) break
+      }
+      if (vivo) setBase({ hojas: (hs ?? []) as HojaBD[], hist, meses: ((aj?.valor ?? {}) as { meses?: number }).meses || 8 })
+    })()
+    return () => { vivo = false }
+  }, [])
+
+  const r = useMemo(() => base && cat ? calcularResumen(base.hojas, base.hist, base.meses, cat.sedes, cat.marcas, ife) : null, [base, cat, ife])
+  const v = (s?: Serie) => (s ? s[mes] : NaN)
+  const abrir = (id: string) => setAbiertos((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const periodo = mes === 12 ? `Año ${ANIO}` : `${MESES[mes]} ${ANIO}`
+
+  if (error) return <div className="card"><p className="malo">No se pudo cargar el presupuesto: {error}</p></div>
+  if (!r) return <div className="card"><p className="muted">Calculando el presupuesto de toda la empresa…</p></div>
+
+  const cols: [string, (n: Nodo) => string][] = vista === 'sede'
+    ? [['Unidades', (n) => n.vol ? entero(v(n.vol)) : ''], ['Facturación', (n) => money(v(n.fact))], ['Contribución del negocio', (n) => money(v(n.cneg))],
+      ['Gastos de la sede', (n) => money(v(n.gsede))], ['Utilidad', (n) => money(v(n.util))], ['% s/ facturación', (n) => n.fact && v(n.fact) ? pct(v(n.util) / v(n.fact)) : '']]
+    : vista === 'marca'
+      ? [['Unidades', (n) => entero(v(n.vol))], ['Facturación', (n) => money(v(n.fact))], ['Margen final (MB 3)', (n) => money(v(n.mb))],
+        ['Margen de contribución', (n) => money(v(n.mc))], ['% MC s/ fact.', (n) => v(n.fact) ? pct(v(n.mc) / v(n.fact)) : ''], ['Utilidad en las sedes', (n) => money(v(n.util))]]
+      : [['Volumen', (n) => n.pendiente ? '' : n.vol ? `${entero(v(n.vol))}${n.volTxt ? ' ' + n.volTxt : ''}` : ''], ['Facturación', (n) => money(v(n.fact))],
+        ['Margen final (MB 3)', (n) => money(v(n.mb))], ['Margen de contribución', (n) => n.pendiente ? 'pendiente' : money(v(n.mc))],
+        ['% MC s/ fact.', (n) => n.fact && v(n.fact) && n.mc ? pct(v(n.mc) / v(n.fact)) : '']]
+  const filas = vista === 'sede' ? r.sedes : vista === 'marca' ? r.marcas : r.negocios
+
+  const fila = (n: Nodo, nivel: number): JSX.Element => {
+    const tiene = !!n.hijos?.length, ab = abiertos.has(n.id)
+    return (
+      <Fragment key={n.id}>
+        <tr className={['res-l' + nivel, n.tipo ?? '', n.pendiente ? 'pend' : ''].join(' ')}>
+          <td className="c-rub">
+            <div className="res-n" style={{ paddingLeft: nivel * 18 }}>
+              {tiene ? <button type="button" className="res-t" aria-expanded={ab} aria-label={(ab ? 'Cerrar ' : 'Abrir ') + n.nombre} onClick={() => abrir(n.id)}>{ab ? '▾' : '▸'}</button> : <i className="res-t" />}
+              <span><b>{n.nombre}</b>{n.nota && <small>{n.nota}</small>}</span>
+            </div>
+          </td>
+          {cols.map(([t, f]) => <td key={t}>{f(n)}</td>)}
+        </tr>
+        {tiene && ab && n.hijos!.map((h) => fila(h, nivel + 1))}
+      </Fragment>
+    )
+  }
+
+  return (
+    <div className="stack">
+      <div className="card res-head">
+        <div>
+          <h2>Resumen del presupuesto {ANIO}</h2>
+          <p className="muted small">Toda la empresa en US$ sin IGV, calculada con lo que hoy está guardado en los formatos. Se actualiza sola cuando los responsables guardan sus hojas.</p>
+        </div>
+        <div className="res-ctl">
+          <label className="ctx">IF&amp;E
+            <div className="seg dos">
+              <input type="radio" id="r-ife-i" name="r-ife" checked={ife} onChange={() => { setIfe(true); recordar('ppto-res-ife', '1') }} /><label htmlFor="r-ife-i">Integrado en Unidades</label>
+              <input type="radio" id="r-ife-n" name="r-ife" checked={!ife} onChange={() => { setIfe(false); recordar('ppto-res-ife', '0') }} /><label htmlFor="r-ife-n">Independiente</label>
+            </div>
+          </label>
+          <label className="ctx">Periodo
+            <select className="cin" value={mes} onChange={(e) => setMes(+e.target.value)}>
+              <option value={12}>Año {ANIO}</option>
+              {MESES.map((m, i) => <option key={m} value={i}>{m} {ANIO}</option>)}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div className="kpis">
+        <div className="kpi"><span>Unidades · {periodo}</span><b>{entero(v(r.kpi.u))}</b></div>
+        <div className="kpi"><span>Facturación</span><b>{money(v(r.kpi.fact))}</b></div>
+        <div className="kpi"><span>Margen final (MB 3)</span><b>{money(v(r.kpi.mb))}</b></div>
+        <div className="kpi"><span>Contribución de los negocios</span><b>{money(v(r.kpi.mc))}</b></div>
+        <div className="kpi mc"><span>Resultado antes de estructura</span><b>{money(v(r.kpi.res))}</b></div>
+      </div>
+
+      <div className="res-bar">
+        <div className="seg lin" role="radiogroup" aria-label="Ver por">
+          {([['negocio', 'Por negocio'], ['sede', 'Por sede'], ['marca', 'Por marca']] as const).map(([k, n]) => (
+            <span key={k}><input type="radio" id={'rv-' + k} name="r-vista" checked={vista === k} onChange={() => { setVista(k); recordar('ppto-res-vista', k) }} /><label htmlFor={'rv-' + k}>{n}</label></span>
+          ))}
+        </div>
+        <div className="res-acc">
+          <button className="btn sm" type="button" onClick={() => setAbiertos(new Set(filas.flatMap(function ids(n: Nodo): string[] { return n.hijos?.length ? [n.id, ...n.hijos.flatMap(ids)] : [] })))}>Abrir todo</button>
+          <button className="btn sm" type="button" onClick={() => setAbiertos(new Set())}>Cerrar todo</button>
+        </div>
+      </div>
+
+      <div className="sheet-wrap">
+        <table className="sheet res">
+          <thead><tr><th className="c-rub">{vista === 'negocio' ? 'Negocio' : vista === 'sede' ? 'Sede' : 'Marca'} · {periodo}</th>{cols.map(([t]) => <th key={t}>{t}</th>)}</tr></thead>
+          <tbody>{filas.map((n) => fila(n, 0))}</tbody>
+        </table>
+      </div>
+
+      <div className="card">
+        <h3>Cómo leerlo</h3>
+        <ul className="muted small res-notas">
+          <li><b>Facturación</b>: venta de unidades más los ingresos de IF&amp;E (intermediación y venta de equipamiento). <b>Margen final</b>: MB 3 de Unidades (con cortesías, fletes, intermediación, equipamiento, bonos y placas){ife ? '' : ' más el MB de IF&E'}. <b>Margen de contribución</b>: después de los gastos de operación de cada negocio.</li>
+          <li><b>IF&amp;E integrado</b>: su margen va dentro de cada marca de Unidades y la fila IF&amp;E solo resta sus gastos propios. <b>Independiente</b>: Unidades sin IF&amp;E e IF&amp;E con su propio margen. El resultado de la empresa es el mismo salvo las comisiones a vendedores por F&amp;I, que cada modo calcula distinto.</li>
+          <li><b>Por sede</b>: la utilidad de cada sede es la contribución del negocio menos sus gastos (personal, alquileres, servicios…). Al abrir una sede se ve cada marca con su parte de los gastos, repartidos por facturación de vehículos (criterio provisional).</li>
+          <li>Faltan los negocios con formato pendiente (Posventa, Seminuevos, Lubricantes, Canal Corporativo de vehículos) y la estructura de la empresa (FU-003): el resultado es <b>antes de estructura</b>.</li>
+        </ul>
+        {r.avisos.length > 0 && <>
+          <h3>Avisos sobre los datos</h3>
+          <ul className="muted small res-notas">{r.avisos.map((a) => <li key={a}>{a}</li>)}</ul>
+        </>}
+      </div>
+    </div>
+  )
+}
