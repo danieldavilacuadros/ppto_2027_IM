@@ -174,8 +174,14 @@ export function calcularResumen(hojas: HojaBD[], histSede: Map<string, { cuenta:
     const factS = sum(de(r, 'venta'), s.aSede ? de(s.aSede, ingA) : Z())
     return {
       id: 's|' + s.sede, nombre: s.sede, vol: de(r, 'u'), fact: factS, cneg: de(r, 'cneg'), gsede: de(r, 'gsede'), util: de(r, 'usede'),
-      hijos: s.marcas.map((m) => ({ id: `s|${s.sede}|${m.marca}`, nombre: m.marca, vol: de(m.u, 'u'), fact: de(m.u, 'venta'), cneg: de(m.u, 'mc'),
-        gsede: de(r, 'asig@' + m.marca), util: de(r, 'um@' + m.marca) })),
+      hijos: s.marcas.map((m) => {
+        // la parte de IF&E de la sede (gastos en integrado, MC en independiente) va con la contribución; la columna de gastos queda solo con los de la sede
+        const ifeSh = Z()
+        for (let i = 0; i < 12; i++) { ifeSh[i] = (Number(r[i]?.ifeG) || 0) * (Number(r[i]?.['part@' + m.marca]) || 0); ifeSh[12] += ifeSh[i] }
+        const asig = de(r, 'asig@' + m.marca)
+        return { id: `s|${s.sede}|${m.marca}`, nombre: m.marca, vol: de(m.u, 'u'), fact: de(m.u, 'venta'), cneg: sum(de(m.u, 'mc'), ifeSh),
+          gsede: asig.map((x, i) => x - ifeSh[i]), util: de(r, 'um@' + m.marca) }
+      }),
     }
   })
   const totS: Nodo = { id: 's|tot', nombre: 'Total sedes', vol: sum(...sedesN.map((x) => x.vol)), fact: sum(...sedesN.map((x) => x.fact)),
