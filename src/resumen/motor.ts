@@ -46,8 +46,25 @@ function completar(base: Datos, g: Partial<Datos> | null | undefined): Datos {
 }
 const [F0, F1, F2] = FORMATOS
 
-export function calcularResumen(hojas: HojaBD[], histSede: Map<string, { cuenta: string; monto: number }[]>, meses: number,
-  ordenSedes: string[], ordenMarcas: string[], ife: boolean): Resumen {
+/** Pieza mínima del presupuesto: un negocio en una sede y una marca (Seminuevos y lo nacional no tienen marca). */
+export interface Pieza {
+  sede: string | null
+  marca: string | null
+  negocio: 'unidades' | 'ife' | 'semi' | 'corp' | 'mkt'
+  vol?: Serie
+  fact?: Serie
+  mb?: Serie
+  /** margen de contribución del negocio (antes de los gastos de la sede) */
+  mc?: Serie
+  /** gastos de la sede que le tocan (reparto por facturación) */
+  gs?: Serie
+}
+export interface Base { piezas: Pieza[]; avisos: string[]; sedes: string[]; marcas: string[]; ife: boolean }
+export interface Filtro { sedes: string[]; marcas: string[]; negocios: string[] }
+
+/** Calcula todas las piezas con los motores de los formatos (lo pesado; se hace una vez por modo de IF&E). */
+export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: string; monto: number }[]>, meses: number,
+  ordenSedes: string[], ordenMarcas: string[], ife: boolean): Base {
   const avisos: string[] = []
   const por = (f: string, h: string) => hojas.filter((x) => x.formato === f && x.hoja === h)
   const mapa = (f: string, h: string) => new Map(por(f, h).map((x) => [`${x.sede}|${x.alcance}`, x.datos]))
@@ -105,11 +122,18 @@ export function calcularResumen(hojas: HojaBD[], histSede: Map<string, { cuenta:
   const corp = corpG ? completar(F1.ejemplo('corp'), corpG) : null
   const corpC = corp ? columnsA('corp', corp, ife) as unknown as Col[] : null
   let glin = Z()
+  // prorrateo de los gastos de línea a cada sede y al Corporativo, por facturación de vehículos del mes
+  const lineaSh = new Map<string, Serie>()
   if (lineaG) {
     const sA = porSede.filter((x) => x.aDatos).map((x) => ({ sede: x.sede, datos: x.aDatos! }))
     const mA = porSede.flatMap((x) => x.marcas.filter((m) => m.aDatos).map((m) => ({ marca: m.marca, datos: m.aDatos! })))
     const Bn = baseNacionalA(sA, corp, mA, ife)
     glin = de(lineaA(completar(F1.ejemplo('linea'), lineaG), Bn) as unknown as Col[], 'glin')
+    for (const [k, v] of Bn.partes) {
+      const sh = Z()
+      for (let i = 0; i < 12; i++) { const vt = Bn.partes.reduce((a, [, x]) => a + (x[i] || 0), 0); sh[i] = vt ? glin[i] * (v[i] || 0) / vt : 0; sh[12] += sh[i] }
+      lineaSh.set(k, sh)
+    }
   }
   // Marketing: el neto de cada marca ya está en Unidades; aquí solo el área (va a FU-003)
   let area = Z()
@@ -128,110 +152,147 @@ export function calcularResumen(hojas: HojaBD[], histSede: Map<string, { cuenta:
     semi.set(sd, computeS(completar(copia(XS as Datos), semiG.get(sd))) as unknown as Col[])
   }
 
-  // ── series por bloque
+  // ── piezas
   const ops = (c: Col) => (Number(c.nCred) || 0) + (Number(c.nSeg) || 0) + (Number(c.nFon) || 0)
   const ingA = (c: Col) => (Number(c.IF) || 0) + (Number(c.eqp) || 0)
-  const uMarca = (x: MarcaC) => ({ vol: de(x.u, 'u'), fact: de(x.u, 'venta'), mb: de(x.u, 'mb3'), mc: de(x.u, 'mc') })
-
-  // ── Por negocio
-  const nU: Nodo = { id: 'unidades', nombre: 'Unidades (vehículos nuevos)', volTxt: 'unidades', vol: Z(), fact: Z(), mb: Z(), mc: Z(), hijos: [],
-    nota: ife ? 'Incluye el margen de IF&E de cada marca (modo integrado)' : 'Sin IF&E (modo independiente)' }
-  const nA: Nodo = { id: 'ife', nombre: 'IF&E · intermediación financiera y equipamiento', volTxt: 'operaciones F&I', vol: Z(), fact: Z(), mb: Z(), mc: Z(), hijos: [],
-    nota: ife ? 'Integrado: su margen ya está en Unidades; aquí solo resta sus gastos propios, el Canal Corporativo y los gastos de línea' : 'Independiente: margen y gastos propios de IF&E' }
-  for (const s of porSede) {
-    const hu: Nodo = { id: 'u|' + s.sede, nombre: s.sede, vol: Z(), fact: Z(), mb: Z(), mc: Z(), hijos: [] }
-    for (const m of s.marcas) {
-      const x = uMarca(m)
-      hu.hijos!.push({ id: `u|${s.sede}|${m.marca}`, nombre: m.marca, ...x })
-      hu.vol = sum(hu.vol, x.vol); hu.fact = sum(hu.fact, x.fact); hu.mb = sum(hu.mb, x.mb); hu.mc = sum(hu.mc, x.mc)
-    }
-    nU.hijos!.push(hu)
-    if (s.aSede) {
-      const c = s.aSede
-      const ha: Nodo = { id: 'a|' + s.sede, nombre: s.sede, vol: de(c, ops), fact: de(c, ingA), mb: de(c, 'mb'), mc: de(c, ife ? 'gastos' : 'mc'), hijos: [] }
-      for (const m of s.marcas) if (m.a) ha.hijos!.push({ id: `a|${s.sede}|${m.marca}`, nombre: m.marca, vol: de(m.a, ops), fact: de(m.a, ingA), mb: de(m.a, 'mb'), mc: ife ? Z() : de(m.a, 'mb') })
-      ha.hijos!.push({ id: `a|${s.sede}|gastos`, nombre: 'Gastos propios de IF&E de la sede', mc: de(c, 'gastos'), tipo: 'ajuste' })
-      nA.hijos!.push(ha)
-    }
+  const ventaSede = (x: SedeC) => sum(...x.marcas.map((m) => de(m.u, 'venta')))
+  // reparte una serie de la sede a la marca por su facturación de vehículos del mes
+  const parte = (x: SedeC, m: MarcaC, total: Serie): Serie => {
+    const vs = ventaSede(x), vm = de(m.u, 'venta'), r = Z()
+    for (let i = 0; i < 12; i++) { r[i] = vs[i] ? total[i] * vm[i] / vs[i] : 0; r[12] += r[i] }
+    return r
   }
-  if (corpC) nA.hijos!.push({ id: 'a|corp', nombre: 'Canal Corporativo (IF&E)', vol: de(corpC, ops), fact: de(corpC, ingA), mb: de(corpC, 'mb'), mc: de(corpC, 'mc') })
-  if (lineaG) nA.hijos!.push({ id: 'a|linea', nombre: 'Gastos de línea IF&E (nacional)', mc: glin, tipo: 'ajuste' })
-  else avisos.push('IF&E: los gastos de línea aún no están guardados.')
-  for (const n of [nU, nA]) n.hijos!.forEach((h) => { n.vol = sum(n.vol, h.vol); n.fact = sum(n.fact, h.fact); n.mb = sum(n.mb, h.mb); n.mc = sum(n.mc, h.mc) })
-  // en integrado el MB de las sedes de IF&E ya está en Unidades: solo suma el del Corporativo
-  const mbIfe = ife ? (corpC ? de(corpC, 'mb') : Z()) : nA.mb!
-  const gSedes = sum(...porSede.map((s) => de(s.res, 'gsede')))
-  const nMkt: Nodo = { id: 'mkt', nombre: 'Marketing · gastos del área', mc: area, tipo: 'ajuste', nota: 'El marketing de cada marca ya está en Unidades; esto es el área (va a FU-003)' }
-  const nGs: Nodo = { id: 'gsede', nombre: 'Gastos de las sedes', mc: gSedes, tipo: 'ajuste', nota: 'Personal de sede, alquileres, servicios, gestión, impuestos, seguros y honorarios',
-    hijos: porSede.map((s) => ({ id: 'g|' + s.sede, nombre: s.sede, mc: de(s.res, 'gsede') })) }
+  const lineaDe = (k: string) => lineaSh.get(k) ?? Z()
+  if (!lineaG) avisos.push('IF&E: los gastos de línea aún no están guardados.')
+  const piezas: Pieza[] = []
+  for (const x of porSede) {
+    const r = x.res
+    // gastos de IF&E de la sede + su parte de los gastos de línea: en integrado van a Unidades, en independiente a IF&E
+    const ifeCarga = sum(x.aSede ? de(x.aSede, 'gastos') : Z(), lineaDe(x.sede))
+    // gastos de la sede que le tocan a cada marca (sin la parte de IF&E que computeSede reparte junto);
+    // si la tabla de personal no reparte el 100 % (porcentajes a mano), el saldo se reparte por facturación para que cuadre con la sede
+    const gsM = new Map<string, Serie>(), saldo = Z()
+    for (const m of x.marcas) {
+      const g = Z()
+      for (let i = 0; i < 12; i++) g[i] = (Number(r[i]?.['asig@' + m.marca]) || 0) - (Number(r[i]?.ifeG) || 0) * (Number(r[i]?.['part@' + m.marca]) || 0)
+      gsM.set(m.marca, g)
+    }
+    for (let i = 0; i < 12; i++) { saldo[i] = (Number(r[i]?.gsede) || 0) - x.marcas.reduce((a, m) => a + gsM.get(m.marca)![i], 0); saldo[12] += saldo[i] }
+    if (Math.abs(saldo[12]) > 1) avisos.push(`${x.sede}: ${Math.round(Math.abs(saldo[12])).toLocaleString('es-PE')} de la tabla de personal de sede no estaban repartidos entre sus marcas (porcentajes a mano que no suman 100 %); se repartieron por facturación.`)
+    for (const m of x.marcas) {
+      const carga = parte(x, m, ifeCarga)
+      const sal = parte(x, m, saldo)
+      const gs = Z()
+      for (let i = 0; i < 12; i++) { gs[i] = gsM.get(m.marca)![i] + sal[i]; gs[12] += gs[i] }
+      const u: Pieza = { sede: x.sede, marca: m.marca, negocio: 'unidades', vol: de(m.u, 'u'), fact: de(m.u, 'venta'), mb: de(m.u, 'mb3'), mc: de(m.u, 'mc'), gs }
+      if (ife) { u.fact = sum(u.fact, m.a ? de(m.a, ingA) : Z()); u.mc = sum(u.mc, carga) }
+      piezas.push(u)
+      if (!ife) piezas.push({ sede: x.sede, marca: m.marca, negocio: 'ife', vol: m.a ? de(m.a, ops) : Z(), fact: m.a ? de(m.a, ingA) : Z(),
+        mb: m.a ? de(m.a, 'mb') : Z(), mc: sum(m.a ? de(m.a, 'mb') : Z(), carga) })
+    }
+    const sc = semi.get(x.sede)
+    if (sc) piezas.push({ sede: x.sede, marca: null, negocio: 'semi', vol: de(sc, 'u'), fact: de(sc, 'fact'), mb: de(sc, 'mb3'), mc: de(sc, 'mc'), gs: de(sc, 'gsede') })
+  }
+  if (corpC) piezas.push({ sede: null, marca: null, negocio: 'corp', vol: de(corpC, ops), fact: de(corpC, ingA), mb: de(corpC, 'mb'), mc: sum(de(corpC, 'mc'), lineaDe('corp')) })
+  if (mktG) piezas.push({ sede: null, marca: null, negocio: 'mkt', mc: area })
+  const marcas = [...new Set(porSede.flatMap((x) => x.marcas.map((m) => m.marca)))].sort((a, b) => om(a) - om(b))
+  return { piezas, avisos, sedes, marcas, ife }
+}
+
+export const NEGOCIOS: Record<string, string> = { unidades: 'Unidades', ife: 'IF&E', semi: 'Seminuevos', corp: 'Canal Corporativo' }
+
+/** Suma las piezas según los filtros y arma los indicadores y las tres vistas. */
+export function agrupar(b: Base, f: Filtro): Resumen {
+  const { ife } = b
+  const conSede = f.sedes.length > 0, conMarca = f.marcas.length > 0, conNeg = f.negocios.length > 0
+  const okNeg = (n: string) => !conNeg || f.negocios.includes(n)
+  const ok = (p: Pieza) => {
+    if (p.negocio === 'mkt') return !conSede && !conMarca && !conNeg // gasto del área: solo en la vista de toda la empresa
+    if (!okNeg(p.negocio)) return false
+    if (p.sede === null) return !conSede && !conMarca
+    if (conSede && !f.sedes.includes(p.sede)) return false
+    if (conMarca && (p.marca === null || !f.marcas.includes(p.marca))) return false
+    return true
+  }
+  const P = b.piezas.filter(ok)
+  const suma = (ps: Pieza[], k: 'vol' | 'fact' | 'mb' | 'mc' | 'gs') => sum(...ps.map((p) => p[k]))
+  const util = (ps: Pieza[]) => sum(suma(ps, 'mc'), suma(ps, 'gs'))
+  const de_ = (n: Pieza['negocio']) => P.filter((p) => p.negocio === n)
+  const sedesDe = (ps: Pieza[]) => b.sedes.filter((s) => ps.some((p) => p.sede === s))
+  const marcasDe = (ps: Pieza[]) => b.marcas.filter((m) => ps.some((p) => p.marca === m))
+
+  // ── Por negocio (→ sede → marca)
+  const nodoNeg = (id: string, nombre: string, ps: Pieza[], volTxt: string, nota: string): Nodo => ({
+    id, nombre, volTxt, nota, vol: suma(ps, 'vol'), fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: suma(ps, 'mc'),
+    hijos: sedesDe(ps).map((s) => {
+      const pss = ps.filter((p) => p.sede === s)
+      return { id: `${id}|${s}`, nombre: s, vol: suma(pss, 'vol'), fact: suma(pss, 'fact'), mb: suma(pss, 'mb'), mc: suma(pss, 'mc'),
+        hijos: marcasDe(pss).map((m) => { const pm = pss.filter((p) => p.marca === m); return { id: `${id}|${s}|${m}`, nombre: m, vol: suma(pm, 'vol'), fact: suma(pm, 'fact'), mb: suma(pm, 'mb'), mc: suma(pm, 'mc') } }) }
+    }),
+  })
   const pend = (id: string, nombre: string, volTxt: string): Nodo => ({ id, nombre, volTxt, pendiente: true, nota: 'Formato pendiente' })
-  const nS: Nodo = { id: 'semi', nombre: 'Seminuevos', volTxt: 'unidades', vol: Z(), fact: Z(), mb: Z(), mc: Z(), hijos: [],
-    nota: 'Margen de contribución después de sus propios gastos de sede (local y personal)' }
-  for (const [sd, c] of semi) {
-    nS.hijos!.push({ id: 'se|' + sd, nombre: sd, vol: de(c, 'u'), fact: de(c, 'fact'), mb: de(c, 'mb3'), mc: de(c, 'usede'), hijos: [
-      { id: `se|${sd}|mc`, nombre: 'Margen de contribución comercial', fact: de(c, 'fact'), mb: de(c, 'mb3'), mc: de(c, 'mc') },
-      { id: `se|${sd}|g`, nombre: 'Gastos propios de Seminuevos (local y personal)', mc: de(c, 'gsede'), tipo: 'ajuste' }] })
+  const negs: Nodo[] = []
+  if (okNeg('unidades')) negs.push(nodoNeg('unidades', 'Unidades (vehículos nuevos)', de_('unidades'), 'unidades',
+    ife ? 'Con IF&E integrado: su margen, sus gastos de sede y su parte de los gastos de línea, repartidos a cada marca por facturación' : 'Sin IF&E (modo independiente)'))
+  if (!ife && okNeg('ife')) negs.push(nodoNeg('ife', 'IF&E · intermediación financiera y equipamiento', de_('ife'), 'operaciones F&I',
+    'Margen de IF&E con sus gastos de sede y su parte de los gastos de línea'))
+  if (!conNeg) negs.push(pend('posventa', 'Posventa', 'pasos vehiculares'))
+  if (okNeg('semi') && !conMarca) {
+    const ps = de_('semi')
+    negs.push(ps.length ? { id: 'semi', nombre: 'Seminuevos', volTxt: 'unidades', vol: suma(ps, 'vol'), fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: util(ps),
+      nota: 'Después de sus propios gastos de sede (local y personal)' } : { id: 'semi', nombre: 'Seminuevos', volTxt: 'unidades', pendiente: true, nota: 'Solo en Arequipa' })
   }
-  nS.hijos!.forEach((h) => { nS.vol = sum(nS.vol, h.vol); nS.fact = sum(nS.fact, h.fact); nS.mb = sum(nS.mb, h.mb); nS.mc = sum(nS.mc, h.mc) })
-  const contrib = sum(nU.mc, nA.mc, nS.mc)
-  const res = sum(contrib, gSedes, area)
-  const fact = sum(nU.fact, nA.fact, nS.fact)
-  const mbT = sum(nU.mb, mbIfe, nS.mb)
-  const negocios: Nodo[] = [nU, nA,
-    pend('posventa', 'Posventa', 'pasos vehiculares'), nS, pend('lubricantes', 'Lubricantes', 'barriles'),
-    pend('fu005', 'Canal Corporativo · vehículos (FU-005-C)', 'unidades'),
-    { id: 'contrib', nombre: 'Contribución de los negocios', vol: undefined, fact, mb: mbT, mc: contrib, tipo: 'sub' },
-    nGs, nMkt,
-    pend('fu003', 'Estructura de la empresa (FU-003)', ''),
-    { id: 'total', nombre: 'Resultado de la empresa (antes de estructura)', fact, mb: mbT, mc: res, tipo: 'total' }]
+  if (!conNeg) negs.push(pend('lubricantes', 'Lubricantes', 'barriles'))
+  if (okNeg('corp') && !conSede && !conMarca) {
+    const ps = de_('corp')
+    negs.push(ps.length ? { id: 'corp', nombre: 'Canal Corporativo', volTxt: 'operaciones F&I', vol: suma(ps, 'vol'), fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: suma(ps, 'mc'),
+      nota: 'Por ahora solo su IF&E (con su parte de los gastos de línea); los vehículos (FU-005-C) están pendientes' } : pend('corp', 'Canal Corporativo · vehículos (FU-005-C)', 'unidades'))
+  }
+  const negocioPs = P.filter((p) => p.negocio !== 'mkt')
+  // Seminuevos ya viene con sus gastos; el resto de gastos de sede va en su fila
+  const contrib = sum(...negocioPs.map((p) => (p.negocio === 'semi' ? sum(p.mc, p.gs) : p.mc)))
+  const gs = sum(...negocioPs.filter((p) => p.negocio !== 'semi').map((p) => p.gs))
+  const area = suma(de_('mkt'), 'mc')
+  const fact = suma(negocioPs, 'fact'), mb = suma(negocioPs, 'mb')
+  const res = sum(contrib, gs, area)
+  negs.push({ id: 'contrib', nombre: 'Contribución de los negocios', fact, mb, mc: contrib, tipo: 'sub' })
+  const pgs = negocioPs.filter((p) => p.negocio !== 'semi' && p.gs)
+  negs.push({ id: 'gsede', nombre: 'Gastos de las sedes', mc: gs, tipo: 'ajuste', nota: 'Personal de sede, alquileres, servicios, gestión, impuestos, seguros y honorarios',
+    hijos: sedesDe(pgs).map((s) => ({ id: 'g|' + s, nombre: s, mc: suma(pgs.filter((p) => p.sede === s), 'gs') })) })
+  if (de_('mkt').length) negs.push({ id: 'mkt', nombre: 'Marketing · gastos del área', mc: area, tipo: 'ajuste', nota: 'El marketing de cada marca ya está en Unidades; esto es el área (va a FU-003)' })
+  const filtrado = conSede || conMarca || conNeg
+  if (!filtrado) negs.push(pend('fu003', 'Estructura de la empresa (FU-003)', ''))
+  const tituloTotal = filtrado ? 'Resultado de lo filtrado' : 'Resultado de la empresa (antes de estructura)'
+  negs.push({ id: 'total', nombre: tituloTotal, fact, mb, mc: res, tipo: 'total' })
 
-  // ── Por sede
-  const sedesN: Nodo[] = porSede.map((s) => {
-    const r = s.res
-    const factS = sum(de(r, 'venta'), s.aSede ? de(s.aSede, ingA) : Z())
-    const sc = semi.get(s.sede)
-    const nodo: Nodo = {
-      id: 's|' + s.sede, nombre: s.sede, vol: de(r, 'u'), fact: factS, cneg: de(r, 'cneg'), gsede: de(r, 'gsede'), util: de(r, 'usede'),
-      hijos: s.marcas.map((m) => {
-        // la parte de IF&E de la sede (gastos en integrado, MC en independiente) va con la contribución; la columna de gastos queda solo con los de la sede
-        const ifeSh = Z()
-        for (let i = 0; i < 12; i++) { ifeSh[i] = (Number(r[i]?.ifeG) || 0) * (Number(r[i]?.['part@' + m.marca]) || 0); ifeSh[12] += ifeSh[i] }
-        const asig = de(r, 'asig@' + m.marca)
-        return { id: `s|${s.sede}|${m.marca}`, nombre: m.marca, vol: de(m.u, 'u'), fact: de(m.u, 'venta'), cneg: sum(de(m.u, 'mc'), ifeSh),
-          gsede: asig.map((x, i) => x - ifeSh[i]), util: de(r, 'um@' + m.marca) }
-      }),
-    }
-    if (sc) {
-      // Seminuevos suma a la sede: su contribución, sus gastos propios y su utilidad
-      nodo.vol = sum(nodo.vol, de(sc, 'u')); nodo.fact = sum(nodo.fact, de(sc, 'fact')); nodo.cneg = sum(nodo.cneg, de(sc, 'mc'))
-      nodo.gsede = sum(nodo.gsede, de(sc, 'gsede')); nodo.util = sum(nodo.util, de(sc, 'usede'))
-      nodo.hijos!.push({ id: `s|${s.sede}|semi`, nombre: 'Seminuevos', vol: de(sc, 'u'), fact: de(sc, 'fact'), cneg: de(sc, 'mc'), gsede: de(sc, 'gsede'), util: de(sc, 'usede') })
-    }
-    return nodo
+  // ── Por sede (→ marca y Seminuevos)
+  const sedePs = negocioPs.filter((p) => p.sede !== null)
+  const filaSede = (id: string, nombre: string, ps: Pieza[]): Nodo => ({ id, nombre, vol: suma(ps.filter((p) => p.negocio !== 'ife'), 'vol'), fact: suma(ps, 'fact'),
+    cneg: suma(ps, 'mc'), gsede: suma(ps, 'gs'), util: util(ps) })
+  const sedesN: Nodo[] = sedesDe(sedePs).map((s) => {
+    const ps = sedePs.filter((p) => p.sede === s)
+    const hijos = marcasDe(ps).map((m) => filaSede(`s|${s}|${m}`, m, ps.filter((p) => p.marca === m)))
+    const ps2 = ps.filter((p) => p.negocio === 'semi'); if (ps2.length) hijos.push(filaSede(`s|${s}|semi`, 'Seminuevos', ps2))
+    return { ...filaSede('s|' + s, s, ps), hijos }
   })
-  const totS: Nodo = { id: 's|tot', nombre: 'Total sedes', vol: sum(...sedesN.map((x) => x.vol)), fact: sum(...sedesN.map((x) => x.fact)),
-    cneg: sum(...sedesN.map((x) => x.cneg)), gsede: sum(...sedesN.map((x) => x.gsede)), util: sum(...sedesN.map((x) => x.util)), tipo: 'sub' }
+  const totS: Nodo = { ...filaSede('s|tot', 'Total sedes', sedePs), tipo: 'sub' }
   const extra: Nodo[] = []
-  if (corpC) extra.push({ id: 's|corp', nombre: 'Canal Corporativo (IF&E)', fact: de(corpC, ingA), util: de(corpC, 'mc'), tipo: 'ajuste' })
-  if (lineaG) extra.push({ id: 's|linea', nombre: 'Gastos de línea IF&E (nacional)', util: glin, tipo: 'ajuste' })
-  extra.push({ id: 's|mkt', nombre: 'Marketing · gastos del área', util: area, tipo: 'ajuste' })
-  const totE: Nodo = { id: 's|emp', nombre: 'Resultado de la empresa (antes de estructura)', fact: sum(totS.fact, corpC ? de(corpC, ingA) : Z()), util: sum(totS.util, ...extra.map((x) => x.util)), tipo: 'total' }
+  const pc = de_('corp'); if (pc.length) extra.push({ id: 's|corp', nombre: 'Canal Corporativo (IF&E)', fact: suma(pc, 'fact'), util: suma(pc, 'mc'), tipo: 'ajuste' })
+  if (de_('mkt').length) extra.push({ id: 's|mkt', nombre: 'Marketing · gastos del área', util: area, tipo: 'ajuste' })
+  const totE: Nodo = { id: 's|emp', nombre: tituloTotal, fact, util: res, tipo: 'total' }
 
-  // ── Por marca (nacional)
-  const nombres = [...new Set(porSede.flatMap((s) => s.marcas.map((m) => m.marca)))].sort((a, b) => om(a) - om(b))
-  const marcasN: Nodo[] = nombres.map((mk) => {
-    const hijos: Nodo[] = porSede.filter((s) => s.marcas.some((m) => m.marca === mk)).map((s) => {
-      const m = s.marcas.find((x) => x.marca === mk)!
-      return { id: `m|${mk}|${s.sede}`, nombre: s.sede, ...uMarca(m), util: de(s.res, 'um@' + mk) }
-    })
-    return { id: 'm|' + mk, nombre: mk, vol: sum(...hijos.map((h) => h.vol)), fact: sum(...hijos.map((h) => h.fact)), mb: sum(...hijos.map((h) => h.mb)),
-      mc: sum(...hijos.map((h) => h.mc)), util: sum(...hijos.map((h) => h.util)), hijos }
+  // ── Por marca (nacional → sede)
+  const marcaPs = negocioPs.filter((p) => p.marca !== null)
+  const filaMarca = (id: string, nombre: string, ps: Pieza[]): Nodo => ({ id, nombre, vol: suma(ps.filter((p) => p.negocio === 'unidades'), 'vol'),
+    fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: suma(ps, 'mc'), util: util(ps) })
+  const marcasN: Nodo[] = marcasDe(marcaPs).map((m) => {
+    const ps = marcaPs.filter((p) => p.marca === m)
+    return { ...filaMarca('m|' + m, m, ps), hijos: sedesDe(ps).map((s) => filaMarca(`m|${m}|${s}`, s, ps.filter((p) => p.sede === s))) }
   })
-  marcasN.push({ id: 'm|tot', nombre: 'Total marcas', vol: sum(...marcasN.map((x) => x.vol)), fact: sum(...marcasN.map((x) => x.fact)), mb: sum(...marcasN.map((x) => x.mb)),
-    mc: sum(...marcasN.map((x) => x.mc)), util: sum(...marcasN.map((x) => x.util)), tipo: 'total' })
+  marcasN.push({ ...filaMarca('m|tot', 'Total marcas', marcaPs), tipo: 'total' })
 
   return {
-    kpi: { u: nU.vol!, fact, mb: mbT, mc: contrib, res },
-    negocios, sedes: [...sedesN, totS, ...extra, totE], marcas: marcasN, avisos,
+    kpi: { u: suma(P.filter((p) => p.negocio === 'unidades'), 'vol'), fact, mb, mc: contrib, res },
+    negocios: negs, sedes: [...sedesN, totS, ...extra, totE], marcas: marcasN, avisos: b.avisos,
   }
 }

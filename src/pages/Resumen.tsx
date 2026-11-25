@@ -2,13 +2,30 @@ import { useEffect, useMemo, useState } from 'react'
 import { sb } from '../lib/supabase'
 import { useCatalogo } from '../lib/catalogo'
 import { money, pct, entero } from '../components/Hoja'
-import { calcularResumen, type HojaBD, type Nodo, type Serie } from '../resumen/motor'
+import { calcularBase, agrupar, NEGOCIOS, type Filtro, type HojaBD, type Nodo, type Serie } from '../resumen/motor'
 
 const ANIO = 2027
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Set', 'Oct', 'Nov', 'Dic']
 type Vista = 'negocio' | 'sede' | 'marca'
 const leerLS = (k: string, d: string) => { try { return localStorage.getItem(k) ?? d } catch { return d } }
 const recordar = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* sin almacenamiento */ } }
+
+/** Lista desplegable con casillas: vacía = todos. */
+function Multi({ titulo, todos, valores, sel, onCambio }: { titulo: string; todos: string; valores: [string, string][]; sel: string[]; onCambio: (v: string[]) => void }) {
+  const txt = sel.length === 0 ? todos : sel.length === 1 ? (valores.find(([k]) => k === sel[0])?.[1] ?? sel[0]) : `${sel.length} elegidos`
+  return (
+    <details className="res-filtro">
+      <summary><small>{titulo}</small><b>{txt}</b></summary>
+      <div className="res-pop">
+        <label className="res-op"><input type="checkbox" checked={sel.length === 0} onChange={() => onCambio([])} /> {todos}</label>
+        {valores.map(([k, n]) => (
+          <label key={k} className="res-op"><input type="checkbox" checked={sel.includes(k)}
+            onChange={(e) => onCambio(e.target.checked ? [...sel, k] : sel.filter((x) => x !== k))} /> {n}</label>
+        ))}
+      </div>
+    </details>
+  )
+}
 
 /** Pestaña de gerencia general: presupuesto de toda la empresa, por negocio, sede y marca. Solo lectura. */
 export default function Resumen() {
@@ -20,6 +37,7 @@ export default function Resumen() {
   const [ruta, setRuta] = useState<string[]>([])
   const [base, setBase] = useState<{ hojas: HojaBD[]; hist: Map<string, { cuenta: string; monto: number }[]>; meses: number } | null>(null)
   const [error, setError] = useState('')
+  const [filtro, setFiltro] = useState<Filtro>({ sedes: [], marcas: [], negocios: [] })
 
   useEffect(() => {
     let vivo = true
@@ -42,7 +60,9 @@ export default function Resumen() {
     return () => { vivo = false }
   }, [])
 
-  const r = useMemo(() => base && cat ? calcularResumen(base.hojas, base.hist, base.meses, cat.sedes, cat.marcas, ife) : null, [base, cat, ife])
+  const b = useMemo(() => base && cat ? calcularBase(base.hojas, base.hist, base.meses, cat.sedes, cat.marcas, ife) : null, [base, cat, ife])
+  const r = useMemo(() => b ? agrupar(b, filtro) : null, [b, filtro])
+  const filtrar = (f: Partial<Filtro>) => { setFiltro((x) => ({ ...x, ...f })); setRuta([]) }
   const v = (s?: Serie) => (s ? s[mes] : NaN)
   const periodo = mes === 12 ? `Año ${ANIO}` : `${MESES[mes]} ${ANIO}`
 
@@ -78,9 +98,17 @@ export default function Resumen() {
           <p className="muted small">Toda la empresa en US$ sin IGV, calculada con lo que hoy está guardado en los formatos. Se actualiza sola cuando los responsables guardan sus hojas.</p>
         </div>
         <div className="res-ctl">
+          <div className="res-filtros" aria-label="Filtros">
+            <Multi titulo="Sedes" todos="Todas las sedes" valores={(b?.sedes ?? []).map((x) => [x, x])} sel={filtro.sedes} onCambio={(v) => filtrar({ sedes: v })} />
+            <Multi titulo="Negocios" todos="Todos los negocios" sel={filtro.negocios} onCambio={(v) => filtrar({ negocios: v })}
+              valores={Object.entries(NEGOCIOS).filter(([k]) => !(ife && k === 'ife'))} />
+            <Multi titulo="Marcas" todos="Todas las marcas" valores={(b?.marcas ?? []).map((x) => [x, x])} sel={filtro.marcas} onCambio={(v) => filtrar({ marcas: v })} />
+            {(filtro.sedes.length + filtro.marcas.length + filtro.negocios.length > 0) &&
+              <button type="button" className="btn sm" onClick={() => filtrar({ sedes: [], marcas: [], negocios: [] })}>Quitar filtros</button>}
+          </div>
           <label className="ctx">IF&amp;E
             <div className="seg dos">
-              <input type="radio" id="r-ife-i" name="r-ife" checked={ife} onChange={() => { setIfe(true); recordar('ppto-res-ife', '1') }} /><label htmlFor="r-ife-i">Integrado en Unidades</label>
+              <input type="radio" id="r-ife-i" name="r-ife" checked={ife} onChange={() => { setIfe(true); recordar('ppto-res-ife', '1'); filtrar({ negocios: filtro.negocios.filter((x) => x !== 'ife') }) }} /><label htmlFor="r-ife-i">Integrado en Unidades</label>
               <input type="radio" id="r-ife-n" name="r-ife" checked={!ife} onChange={() => { setIfe(false); recordar('ppto-res-ife', '0') }} /><label htmlFor="r-ife-n">Independiente</label>
             </div>
           </label>
@@ -142,7 +170,7 @@ export default function Resumen() {
         <h3>Cómo leerlo</h3>
         <ul className="muted small res-notas">
           <li><b>Facturación</b>: venta de unidades más los ingresos de IF&amp;E (intermediación y venta de equipamiento). <b>Margen final</b>: MB 3 de Unidades (con cortesías, fletes, intermediación, equipamiento, bonos y placas){ife ? '' : ' más el MB de IF&E'}. <b>Margen de contribución</b>: después de los gastos de operación de cada negocio.</li>
-          <li><b>IF&amp;E integrado</b>: su margen va dentro de cada marca de Unidades y la fila IF&amp;E solo resta sus gastos propios. <b>Independiente</b>: Unidades sin IF&amp;E e IF&amp;E con su propio margen. El resultado de la empresa es el mismo salvo las comisiones a vendedores por F&amp;I, que cada modo calcula distinto.</li>
+          <li><b>IF&amp;E integrado</b>: todo IF&amp;E va dentro de Unidades: su margen, sus gastos propios de cada sede y su parte de los gastos de línea, repartidos a cada marca por facturación de vehículos (criterio provisional). El IF&amp;E del Canal Corporativo, con su parte de los gastos de línea, va en la columna Canal Corporativo. <b>Independiente</b>: IF&amp;E es una línea propia con su margen, sus gastos y los gastos de línea. El resultado de la empresa es el mismo salvo las comisiones a vendedores por F&amp;I, que cada modo calcula distinto.</li>
           <li><b>Por sede</b>: la utilidad de cada sede es la contribución del negocio menos sus gastos (personal, alquileres, servicios…). Al abrir una sede se ve cada marca con su parte de los gastos, repartidos por facturación de vehículos (criterio provisional).</li>
           <li><b>Seminuevos</b> (solo Arequipa) entra con su resultado después de sus propios gastos de local y personal, y en «Por sede» se suma a Arequipa. Faltan los negocios con formato pendiente (Posventa, Lubricantes, Canal Corporativo de vehículos) y la estructura de la empresa (FU-003): el resultado es <b>antes de estructura</b>.</li>
         </ul>
