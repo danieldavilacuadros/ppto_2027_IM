@@ -162,6 +162,16 @@ export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: st
     for (let i = 0; i < 12; i++) { r[i] = vs[i] ? total[i] * vm[i] / vs[i] : 0; r[12] += r[i] }
     return r
   }
+  // reparte los gastos de IF&E de la sede a cada marca por su margen de IF&E del mes (si la sede no tiene margen ese mes, por facturación)
+  const parteIfe = (x: SedeC, m: MarcaC, total: Serie): Serie => {
+    const mbM = (mm: MarcaC, i: number) => Math.max(0, mm.a ? Number(mm.a[i]?.mb) || 0 : 0)
+    const porVenta = parte(x, m, total), r = Z()
+    for (let i = 0; i < 12; i++) {
+      const t = x.marcas.reduce((a, mm) => a + mbM(mm, i), 0)
+      r[i] = t > 0 ? total[i] * mbM(m, i) / t : porVenta[i]; r[12] += r[i]
+    }
+    return r
+  }
   const lineaDe = (k: string) => lineaSh.get(k) ?? Z()
   if (!lineaG) avisos.push('IF&E: los gastos de línea aún no están guardados.')
   const piezas: Pieza[] = []
@@ -180,7 +190,7 @@ export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: st
     for (let i = 0; i < 12; i++) { saldo[i] = (Number(r[i]?.gsede) || 0) - x.marcas.reduce((a, m) => a + gsM.get(m.marca)![i], 0); saldo[12] += saldo[i] }
     if (Math.abs(saldo[12]) > 1) avisos.push(`${x.sede}: ${Math.round(Math.abs(saldo[12])).toLocaleString('es-PE')} de la tabla de personal de sede no estaban repartidos entre sus marcas (porcentajes a mano que no suman 100 %); se repartieron por facturación.`)
     for (const m of x.marcas) {
-      const carga = parte(x, m, ifeCarga)
+      const carga = parteIfe(x, m, ifeCarga)
       const sal = parte(x, m, saldo)
       const gs = Z()
       for (let i = 0; i < 12; i++) { gs[i] = gsM.get(m.marca)![i] + sal[i]; gs[12] += gs[i] }
@@ -233,7 +243,7 @@ export function agrupar(b: Base, f: Filtro): Resumen {
   const pend = (id: string, nombre: string, volTxt: string): Nodo => ({ id, nombre, volTxt, pendiente: true, nota: 'Formato pendiente' })
   const negs: Nodo[] = []
   if (okNeg('unidades')) negs.push(nodoNeg('unidades', 'Unidades (vehículos nuevos)', de_('unidades'), 'unidades',
-    ife ? 'Con IF&E integrado: su margen, sus gastos de sede y su parte de los gastos de línea, repartidos a cada marca por facturación' : 'Sin IF&E (modo independiente)'))
+    ife ? 'Con IF&E integrado: su margen y sus gastos (los de la sede y su parte de los de línea), repartidos a cada marca según su margen de IF&E' : 'Sin IF&E (modo independiente)'))
   if (!ife && okNeg('ife')) negs.push(nodoNeg('ife', 'IF&E · intermediación financiera y equipamiento', de_('ife'), 'operaciones F&I',
     'Margen de IF&E con sus gastos de sede y su parte de los gastos de línea'))
   if (!conNeg) negs.push(pend('posventa', 'Posventa', 'pasos vehiculares'))
