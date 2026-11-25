@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { sb } from '../lib/supabase'
 import { useCatalogo } from '../lib/catalogo'
 import { money, pct, entero } from '../components/Hoja'
@@ -16,7 +16,8 @@ export default function Resumen() {
   const [ife, setIfe] = useState(() => leerLS('ppto-res-ife', '1') === '1')
   const [vista, setVista] = useState<Vista>(() => leerLS('ppto-res-vista', 'negocio') as Vista)
   const [mes, setMes] = useState(12) // 12 = año
-  const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
+  /** ruta de detalle: ids de los nodos abiertos (vacía = primer nivel) */
+  const [ruta, setRuta] = useState<string[]>([])
   const [base, setBase] = useState<{ hojas: HojaBD[]; hist: Map<string, { cuenta: string; monto: number }[]>; meses: number } | null>(null)
   const [error, setError] = useState('')
 
@@ -43,12 +44,12 @@ export default function Resumen() {
 
   const r = useMemo(() => base && cat ? calcularResumen(base.hojas, base.hist, base.meses, cat.sedes, cat.marcas, ife) : null, [base, cat, ife])
   const v = (s?: Serie) => (s ? s[mes] : NaN)
-  const abrir = (id: string) => setAbiertos((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const periodo = mes === 12 ? `Año ${ANIO}` : `${MESES[mes]} ${ANIO}`
 
   if (error) return <div className="card"><p className="malo">No se pudo cargar el presupuesto: {error}</p></div>
   if (!r) return <div className="card"><p className="muted">Calculando el presupuesto de toda la empresa…</p></div>
 
+  // métricas (filas de la tabla); cada entidad (negocio, sede o marca) es una columna
   const cols: [string, (n: Nodo) => string][] = vista === 'sede'
     ? [['Unidades', (n) => n.vol ? entero(v(n.vol)) : ''], ['Facturación', (n) => money(v(n.fact))], ['Contribución del negocio', (n) => money(v(n.cneg))],
       ['Gastos de la sede', (n) => money(v(n.gsede))], ['Utilidad', (n) => money(v(n.util))], ['% s/ facturación', (n) => n.fact && v(n.fact) ? pct(v(n.util) / v(n.fact)) : '']]
@@ -60,23 +61,14 @@ export default function Resumen() {
         ['% MC s/ fact.', (n) => n.fact && v(n.fact) && n.mc ? pct(v(n.mc) / v(n.fact)) : '']]
   const filas = vista === 'sede' ? r.sedes : vista === 'marca' ? r.marcas : r.negocios
 
-  const fila = (n: Nodo, nivel: number): JSX.Element => {
-    const tiene = !!n.hijos?.length, ab = abiertos.has(n.id)
-    return (
-      <Fragment key={n.id}>
-        <tr className={['res-l' + nivel, n.tipo ?? '', n.pendiente ? 'pend' : ''].join(' ')}>
-          <td className="c-rub">
-            <div className="res-n" style={{ paddingLeft: nivel * 18 }}>
-              {tiene ? <button type="button" className="res-t" aria-expanded={ab} aria-label={(ab ? 'Cerrar ' : 'Abrir ') + n.nombre} onClick={() => abrir(n.id)}>{ab ? '▾' : '▸'}</button> : <i className="res-t" />}
-              <span><b>{n.nombre}</b>{n.nota && <small>{n.nota}</small>}</span>
-            </div>
-          </td>
-          {cols.map(([t, f]) => <td key={t}>{f(n)}</td>)}
-        </tr>
-        {tiene && ab && n.hijos!.map((h) => fila(h, nivel + 1))}
-      </Fragment>
-    )
-  }
+  // nivel visible: el primero, o los hijos del último nodo de la ruta (con el nodo como columna de total)
+  const pasos: Nodo[] = []
+  let nivel = filas
+  for (const id of ruta) { const n = nivel.find((x) => x.id === id); if (!n?.hijos?.length) break; pasos.push(n); nivel = n.hijos }
+  const padre = pasos[pasos.length - 1]
+  const columnas: Nodo[] = padre ? [{ ...padre, nombre: 'Total ' + padre.nombre, hijos: undefined, tipo: 'total' }, ...nivel] : nivel
+  const cambiarVista = (k: Vista) => { setVista(k); setRuta([]); recordar('ppto-res-vista', k) }
+  const raiz = vista === 'negocio' ? 'Empresa · por negocio' : vista === 'sede' ? 'Empresa · por sede' : 'Empresa · por marca'
 
   return (
     <div className="stack">
@@ -112,21 +104,39 @@ export default function Resumen() {
       <div className="res-bar">
         <div className="seg lin" role="radiogroup" aria-label="Ver por">
           {([['negocio', 'Por negocio'], ['sede', 'Por sede'], ['marca', 'Por marca']] as const).map(([k, n]) => (
-            <span key={k}><input type="radio" id={'rv-' + k} name="r-vista" checked={vista === k} onChange={() => { setVista(k); recordar('ppto-res-vista', k) }} /><label htmlFor={'rv-' + k}>{n}</label></span>
+            <span key={k}><input type="radio" id={'rv-' + k} name="r-vista" checked={vista === k} onChange={() => cambiarVista(k)} /><label htmlFor={'rv-' + k}>{n}</label></span>
           ))}
         </div>
-        <div className="res-acc">
-          <button className="btn sm" type="button" onClick={() => setAbiertos(new Set(filas.flatMap(function ids(n: Nodo): string[] { return n.hijos?.length ? [n.id, ...n.hijos.flatMap(ids)] : [] })))}>Abrir todo</button>
-          <button className="btn sm" type="button" onClick={() => setAbiertos(new Set())}>Cerrar todo</button>
-        </div>
+        <nav className="res-ruta" aria-label="Nivel de detalle">
+          <button type="button" className={'btn sm' + (pasos.length ? '' : ' pri')} onClick={() => setRuta([])}>{raiz}</button>
+          {pasos.map((n, i) => <span key={n.id}>›<button type="button" className={'btn sm' + (i === pasos.length - 1 ? ' pri' : '')} onClick={() => setRuta(ruta.slice(0, i + 1))}>{n.nombre}</button></span>)}
+        </nav>
       </div>
 
       <div className="sheet-wrap">
         <table className="sheet res">
-          <thead><tr><th className="c-rub">{vista === 'negocio' ? 'Negocio' : vista === 'sede' ? 'Sede' : 'Marca'} · {periodo}</th>{cols.map(([t]) => <th key={t}>{t}</th>)}</tr></thead>
-          <tbody>{filas.map((n) => fila(n, 0))}</tbody>
+          <thead><tr>
+            <th className="c-rub">{periodo} · US$</th>
+            {columnas.map((n) => (
+              <th key={n.id} className={[n.tipo ?? '', n.pendiente ? 'pend' : ''].join(' ')} title={n.nota}>
+                {n.hijos?.length
+                  ? <button type="button" className="res-col" onClick={() => setRuta([...pasos.map((x) => x.id), n.id])} aria-label={'Ver el detalle de ' + n.nombre}>{n.nombre} ▸</button>
+                  : <span className="res-col">{n.nombre}</span>}
+                {n.pendiente && <small>pendiente</small>}
+              </th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {cols.map(([t, f]) => (
+              <tr key={t} className={/Utilidad|contribución/i.test(t) ? 'res-clave' : ''}>
+                <td className="c-rub"><b>{t}</b></td>
+                {columnas.map((n) => <td key={n.id} className={[n.tipo ?? '', n.pendiente ? 'pend' : ''].join(' ')}>{f(n)}</td>)}
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
+      <p className="muted small">Haz clic en el nombre de una columna con ▸ para ver su detalle (negocio → sede → marca); la primera columna pasa a ser su total. Usa la ruta de arriba para volver.</p>
 
       <div className="card">
         <h3>Cómo leerlo</h3>
