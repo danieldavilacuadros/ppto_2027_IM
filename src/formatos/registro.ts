@@ -3,6 +3,7 @@ import { XL, computeCol, FILAS as FILAS001 } from './fu001.js'
 import { XA, LEAF, columnsA, rowsA, rowsTotalA, totalA, acumularA, conPlanSede, baseLineaA, lineaA, aplicarLineaA, rowsLinea } from './fu001a.js'
 import { XB, columnsB, rowsB, conPlanB } from './fu001b.js'
 import { XU, computeSede, rowsSede } from './fu001sede.js'
+import { XS, computeS, rowsS } from './fu004s.js'
 
 export type Col = Record<string, number>
 /** Un puesto de la tabla de personal. fijo y monto en S/ al mes; val de % como fracción. */
@@ -38,9 +39,11 @@ export type Fila = [string, string, string, number?, (Sup | null)?, Extra?]
 export type Alcance = 'marca' | 'sede' | 'corp' | 'total' | 'linea'
 export interface HojaDef { id: string; nombre: string; alcance: Alcance; descripcion: string }
 export interface FormatoDef {
-  id: 'FU-001' | 'FU-001-A' | 'FU-001-B'
+  id: 'FU-001' | 'FU-001-A' | 'FU-001-B' | 'FU-004-S'
   nombre: string
-  linea: 'unidades' | 'ife' | 'marketing'
+  linea: 'unidades' | 'ife' | 'marketing' | 'seminuevos'
+  /** sedes donde existe el formato (por defecto todas) */
+  sedes?: string[]
   hojas: HojaDef[]
   ejemplo: (hoja: string) => Datos
   filas: (hoja: string, d?: Datos) => Fila[]
@@ -142,7 +145,22 @@ const FU001B: FormatoDef = {
     : [['Neto de las marcas', 'neto', 'money'], ['Gastos del área', 'area', 'money'], ['Marketing total 2027', 'total', 'money']],
 }
 
-export const FORMATOS: FormatoDef[] = [FU001, FU001A, FU001B]
+// ───────── FU-004-S ─────────
+const FU004S: FormatoDef = {
+  id: 'FU-004-S', nombre: 'Seminuevos', linea: 'seminuevos', sedes: ['AREQUIPA'],
+  hojas: [
+    { id: 'sede', nombre: 'Seminuevos de la sede', alcance: 'sede', descripcion: 'Una sola hoja por sede (en 2027 solo Arequipa): venta de seminuevos, alquileres vehiculares, gastos de operación, gastos propios de la sede y su tabla de personal, hasta la utilidad de Seminuevos.' },
+  ],
+  ejemplo: () => copia(XS as Datos),
+  filas: () => rowsS() as Fila[],
+  calcular: (_h, d) => computeS(d) as unknown as Col[],
+  tablaPersonal: () => true,
+  nivel: ([id, , t, , , ex = {}]) => (t === 's' || ['u', 'venta'].includes(id)) ? 1 : (t === 'g' || ex.l2) ? 2 : 3,
+  pct: ([id], c) => c[id] / c.venta,
+  kpis: () => [['Unidades 2027', 'u', 'int'], ['Venta 2027', 'venta', 'money'], ['MB 3', 'mb3', 'money'], ['Margen de contribución', 'mc', 'money'], ['Utilidad de Seminuevos', 'usede', 'money']],
+}
+
+export const FORMATOS: FormatoDef[] = [FU001, FU001A, FU001B, FU004S]
 
 // ───────── Enlaces entre formatos ─────────
 const SUMA13 = (arrs: number[][]) => Array.from({ length: 13 }, (_, i) => arrs.reduce((a, x) => a + (x[i] || 0), 0))

@@ -94,7 +94,7 @@ export default function Resumen() {
       </div>
 
       <div className="kpis">
-        <div className="kpi"><span>Unidades · {periodo}</span><b>{entero(v(r.kpi.u))}</b></div>
+        <div className="kpi"><span>Unidades nuevas · {periodo}</span><b>{entero(v(r.kpi.u))}</b></div>
         <div className="kpi"><span>Facturación</span><b>{money(v(r.kpi.fact))}</b></div>
         <div className="kpi"><span>Margen final (MB 3)</span><b>{money(v(r.kpi.mb))}</b></div>
         <div className="kpi"><span>Contribución de los negocios</span><b>{money(v(r.kpi.mc))}</b></div>
@@ -144,7 +144,7 @@ export default function Resumen() {
           <li><b>Facturación</b>: venta de unidades más los ingresos de IF&amp;E (intermediación y venta de equipamiento). <b>Margen final</b>: MB 3 de Unidades (con cortesías, fletes, intermediación, equipamiento, bonos y placas){ife ? '' : ' más el MB de IF&E'}. <b>Margen de contribución</b>: después de los gastos de operación de cada negocio.</li>
           <li><b>IF&amp;E integrado</b>: su margen va dentro de cada marca de Unidades y la fila IF&amp;E solo resta sus gastos propios. <b>Independiente</b>: Unidades sin IF&amp;E e IF&amp;E con su propio margen. El resultado de la empresa es el mismo salvo las comisiones a vendedores por F&amp;I, que cada modo calcula distinto.</li>
           <li><b>Por sede</b>: la utilidad de cada sede es la contribución del negocio menos sus gastos (personal, alquileres, servicios…). Al abrir una sede se ve cada marca con su parte de los gastos, repartidos por facturación de vehículos (criterio provisional).</li>
-          <li>Faltan los negocios con formato pendiente (Posventa, Seminuevos, Lubricantes, Canal Corporativo de vehículos) y la estructura de la empresa (FU-003): el resultado es <b>antes de estructura</b>.</li>
+          <li><b>Seminuevos</b> (solo Arequipa) entra con su resultado después de sus propios gastos de local y personal, y en «Por sede» se suma a Arequipa. Faltan los negocios con formato pendiente (Posventa, Lubricantes, Canal Corporativo de vehículos) y la estructura de la empresa (FU-003): el resultado es <b>antes de estructura</b>.</li>
         </ul>
         {r.avisos.length > 0 && <>
           <h3>Avisos sobre los datos</h3>

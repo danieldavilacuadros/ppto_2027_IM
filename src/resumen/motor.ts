@@ -3,6 +3,7 @@
 import { FORMATOS, enlacesHacia001, sumaMarcasA, sumaMarcasB, baseNacionalA, type Col, type Datos } from '../formatos/registro'
 import { columnsA, lineaA } from '../formatos/fu001a.js'
 import { XU, GS, computeSede, gastosDesdeHistorico } from '../formatos/fu001sede.js'
+import { XS, computeS } from '../formatos/fu004s.js'
 
 export type Serie = number[] // 13: ene…dic, año
 export interface Nodo {
@@ -119,6 +120,14 @@ export function calcularResumen(hojas: HojaBD[], histSede: Map<string, { cuenta:
     area = de(F2.calcular('total', d, ife), 'area')
   } else avisos.push('Marketing: el área de marketing aún no guarda su hoja «Marketing total»; sus gastos no se incluyen.')
 
+  // Seminuevos (FU-004-S): una hoja por sede; en 2027 solo Arequipa
+  const semi = new Map<string, Col[]>()
+  const semiG = new Map(por('FU-004-S', 'sede').map((x) => [x.sede, x.datos]))
+  for (const sd of (FORMATOS.find((f) => f.id === 'FU-004-S')?.sedes ?? [])) {
+    if (!semiG.has(sd)) avisos.push(`Seminuevos ${sd}: aún no se guarda la hoja; se muestran los valores del Excel de referencia.`)
+    semi.set(sd, computeS(completar(copia(XS as Datos), semiG.get(sd))) as unknown as Col[])
+  }
+
   // ── series por bloque
   const ops = (c: Col) => (Number(c.nCred) || 0) + (Number(c.nSeg) || 0) + (Number(c.nFon) || 0)
   const ingA = (c: Col) => (Number(c.IF) || 0) + (Number(c.eqp) || 0)
@@ -156,12 +165,20 @@ export function calcularResumen(hojas: HojaBD[], histSede: Map<string, { cuenta:
   const nGs: Nodo = { id: 'gsede', nombre: 'Gastos de las sedes', mc: gSedes, tipo: 'ajuste', nota: 'Personal de sede, alquileres, servicios, gestión, impuestos, seguros y honorarios',
     hijos: porSede.map((s) => ({ id: 'g|' + s.sede, nombre: s.sede, mc: de(s.res, 'gsede') })) }
   const pend = (id: string, nombre: string, volTxt: string): Nodo => ({ id, nombre, volTxt, pendiente: true, nota: 'Formato pendiente' })
-  const contrib = sum(nU.mc, nA.mc)
+  const nS: Nodo = { id: 'semi', nombre: 'Seminuevos', volTxt: 'unidades', vol: Z(), fact: Z(), mb: Z(), mc: Z(), hijos: [],
+    nota: 'Margen de contribución después de sus propios gastos de sede (local y personal)' }
+  for (const [sd, c] of semi) {
+    nS.hijos!.push({ id: 'se|' + sd, nombre: sd, vol: de(c, 'u'), fact: de(c, 'fact'), mb: de(c, 'mb3'), mc: de(c, 'usede'), hijos: [
+      { id: `se|${sd}|mc`, nombre: 'Margen de contribución comercial', fact: de(c, 'fact'), mb: de(c, 'mb3'), mc: de(c, 'mc') },
+      { id: `se|${sd}|g`, nombre: 'Gastos propios de Seminuevos (local y personal)', mc: de(c, 'gsede'), tipo: 'ajuste' }] })
+  }
+  nS.hijos!.forEach((h) => { nS.vol = sum(nS.vol, h.vol); nS.fact = sum(nS.fact, h.fact); nS.mb = sum(nS.mb, h.mb); nS.mc = sum(nS.mc, h.mc) })
+  const contrib = sum(nU.mc, nA.mc, nS.mc)
   const res = sum(contrib, gSedes, area)
-  const fact = sum(nU.fact, nA.fact)
-  const mbT = sum(nU.mb, mbIfe)
+  const fact = sum(nU.fact, nA.fact, nS.fact)
+  const mbT = sum(nU.mb, mbIfe, nS.mb)
   const negocios: Nodo[] = [nU, nA,
-    pend('posventa', 'Posventa', 'pasos vehiculares'), pend('seminuevos', 'Seminuevos', 'unidades'), pend('lubricantes', 'Lubricantes', 'barriles'),
+    pend('posventa', 'Posventa', 'pasos vehiculares'), nS, pend('lubricantes', 'Lubricantes', 'barriles'),
     pend('fu005', 'Canal Corporativo · vehículos (FU-005-C)', 'unidades'),
     { id: 'contrib', nombre: 'Contribución de los negocios', vol: undefined, fact, mb: mbT, mc: contrib, tipo: 'sub' },
     nGs, nMkt,
@@ -172,7 +189,8 @@ export function calcularResumen(hojas: HojaBD[], histSede: Map<string, { cuenta:
   const sedesN: Nodo[] = porSede.map((s) => {
     const r = s.res
     const factS = sum(de(r, 'venta'), s.aSede ? de(s.aSede, ingA) : Z())
-    return {
+    const sc = semi.get(s.sede)
+    const nodo: Nodo = {
       id: 's|' + s.sede, nombre: s.sede, vol: de(r, 'u'), fact: factS, cneg: de(r, 'cneg'), gsede: de(r, 'gsede'), util: de(r, 'usede'),
       hijos: s.marcas.map((m) => {
         // la parte de IF&E de la sede (gastos en integrado, MC en independiente) va con la contribución; la columna de gastos queda solo con los de la sede
@@ -183,6 +201,13 @@ export function calcularResumen(hojas: HojaBD[], histSede: Map<string, { cuenta:
           gsede: asig.map((x, i) => x - ifeSh[i]), util: de(r, 'um@' + m.marca) }
       }),
     }
+    if (sc) {
+      // Seminuevos suma a la sede: su contribución, sus gastos propios y su utilidad
+      nodo.vol = sum(nodo.vol, de(sc, 'u')); nodo.fact = sum(nodo.fact, de(sc, 'fact')); nodo.cneg = sum(nodo.cneg, de(sc, 'mc'))
+      nodo.gsede = sum(nodo.gsede, de(sc, 'gsede')); nodo.util = sum(nodo.util, de(sc, 'usede'))
+      nodo.hijos!.push({ id: `s|${s.sede}|semi`, nombre: 'Seminuevos', vol: de(sc, 'u'), fact: de(sc, 'fact'), cneg: de(sc, 'mc'), gsede: de(sc, 'gsede'), util: de(sc, 'usede') })
+    }
+    return nodo
   })
   const totS: Nodo = { id: 's|tot', nombre: 'Total sedes', vol: sum(...sedesN.map((x) => x.vol)), fact: sum(...sedesN.map((x) => x.fact)),
     cneg: sum(...sedesN.map((x) => x.cneg)), gsede: sum(...sedesN.map((x) => x.gsede)), util: sum(...sedesN.map((x) => x.util)), tipo: 'sub' }

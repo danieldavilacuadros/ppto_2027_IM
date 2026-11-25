@@ -47,7 +47,7 @@ export default function Formatos() {
       const marcasPor = (s: string) => perm.marcasDeSede(s, cat.marcas).filter((m) => perm.ver(L, s, m))
       return { sedes, marcasPor }
     }
-    if (hoja.alcance === 'sede') return { sedes: cat.sedes.filter((s) => perm.ver(L, s, '*')), marcasPor: () => [] as string[] }
+    if (hoja.alcance === 'sede') return { sedes: cat.sedes.filter((s) => (!fmt.sedes || fmt.sedes.includes(s)) && perm.ver(L, s, '*')), marcasPor: () => [] as string[] }
     return { sedes: perm.ver(L, '*', hoja.alcance) ? ['*'] : [], marcasPor: () => [] as string[] }
   }, [cat, perm, fmt, hoja])
 
@@ -274,8 +274,8 @@ export default function Formatos() {
     if (!conTabla || !conEnlaces || !cols) return null
     const d = conEnlaces
     if (hoja.id === 'linea') return d.B ? costoPlan(d.T ?? [], { mb: d.B.mb, prima: d.B.prima, lab: d.P.lab, tc: d.P.tc }) : null
-    return costoPlan(d.T ?? [], { mb: cols.slice(0, 12).map((c) => c.mb), lab: d.P.lab, tc: d.P.tc, marcas: d.V ?? [] })
-  }, [conTabla, conEnlaces, cols, hoja])
+    return costoPlan(d.T ?? [], { mb: cols.slice(0, 12).map((c) => (fmt.id === 'FU-004-S' ? c.mb3 : c.mb)), lab: d.P.lab, tc: d.P.tc, marcas: d.V ?? [] })
+  }, [conTabla, conEnlaces, cols, hoja, fmt])
   const vinculadas = useMemo(() => new Set(Object.keys(enlaces)), [enlaces])
 
   const ESTADO: Record<Estado, string> = {
@@ -373,7 +373,7 @@ export default function Formatos() {
             const M = { ...d.M }; Object.keys(enlaces).forEach((k) => { M[k] = datos.M[k] })
             cambiar({ ...d, M })
           }} />
-          {conTabla && <TablaPersonal tipo={hoja.id === 'linea' ? 'linea' : fmt.id === 'FU-001-B' ? 'marketing' : fmt.id === 'FU-001' ? 'usede' : 'sede'} filas={(conEnlaces!.T ?? []) as Puesto[]}
+          {conTabla && <TablaPersonal tipo={hoja.id === 'linea' ? 'linea' : fmt.id === 'FU-001-B' ? 'marketing' : fmt.id === 'FU-001' ? 'usede' : fmt.id === 'FU-004-S' ? 'semi' : 'sede'} filas={(conEnlaces!.T ?? []) as Puesto[]}
             marcas={(conEnlaces!.V ?? []).map((v) => v.marca)} tc={conEnlaces!.P.tc ?? 3.4} costo={costo} editable={puedeEditar}
             onCambio={(T) => cambiar({ ...datos, T })} onTc={(tc) => cambiar({ ...datos, P: { ...datos.P, tc } })} />}
           <p className="muted small">El número gris al lado de cada rubro es su fila en el Excel. {hist

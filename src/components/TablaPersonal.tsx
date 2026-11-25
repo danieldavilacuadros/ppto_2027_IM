@@ -11,10 +11,12 @@ const TEXTO = {
     'Montos en soles, con el costo laboral de la hoja. Automático: cada puesto se reparte entre las marcas de la sede según su facturación de vehículos del mes; a mano, los porcentajes deben sumar 100 %. Seguridad y limpieza de terceros siguen como montos mensuales. La tabla la ve quien ve la hoja de la sede.'],
   usede: ['Personal de sede', 'Jefe de sede, administración, caja, PDI, asistentes, movilizadores, calidad: los puestos que no son vendedores de una marca. El bono puede ser un % del fijo o un monto fijo mensual.',
     'Montos en soles: se pasan a dólares con el TC y se les suma el costo laboral (40 %, factor de toda la empresa por ahora). Automático: cada puesto se reparte entre las marcas de la sede según su facturación de vehículos del mes; a mano, los porcentajes deben sumar 100 %. La tabla la ve quien ve el consolidado de la sede: el jefe de sede y administración.'],
+  semi: ['Personal de Seminuevos', 'Coordinador, gerente comercial y demás puestos de Seminuevos que no son vendedores ni tasadores. El variable puede ser un % del MB 3 de Seminuevos, un % del fijo o un monto fijo mensual.',
+    'Montos en soles: se pasan a dólares con el TC y se les suma el costo laboral (40 %, factor de toda la empresa por ahora). Suma a los gastos de la sede de Seminuevos.'],
   marketing: ['Personal del área de marketing', 'Jefe, analistas, diseño, community y demás puestos del área. El bono puede ser un % del fijo o un monto fijo mensual. Quien esté en la tabla no se cuenta en el headcount de arriba: si cargas a todo el equipo aquí, deja el headcount en 0 (los equipos por persona siguen usando el headcount).',
     'Montos en soles: se pasan a dólares con el TC y se les suma el costo laboral de la hoja (40 %, factor de toda la empresa por ahora). Suma a los gastos del área, que van a FU-003. La tabla la ve quien ve la hoja Marketing total.'],
 } as const
-const TIPOS_DE = { linea: ['ninguno', 'pctMB', 'pctPrima', 'pctFijo', 'monto'], sede: ['ninguno', 'pctMB', 'pctFijo', 'monto'], marketing: ['ninguno', 'pctFijo', 'monto'], usede: ['ninguno', 'pctFijo', 'monto'] } as const
+const TIPOS_DE = { linea: ['ninguno', 'pctMB', 'pctPrima', 'pctFijo', 'monto'], sede: ['ninguno', 'pctMB', 'pctFijo', 'monto'], marketing: ['ninguno', 'pctFijo', 'monto'], usede: ['ninguno', 'pctFijo', 'monto'], semi: ['ninguno', 'pctMB', 'pctFijo', 'monto'] } as const
 const leer = (s: string) => { const v = parseFloat(String(s).replace(/,/g, '').replace('%', '')); return isFinite(v) ? v : 0 }
 const suma = (a: number[]) => a.reduce((x, y) => x + y, 0)
 const titulo = (s: string) => s.charAt(0) + s.slice(1).toLowerCase()
@@ -22,7 +24,7 @@ const titulo = (s: string) => s.charAt(0) + s.slice(1).toLowerCase()
 export type CostoPlan = { tot: number[]; filas: { tot: number[] }[]; marcas: Record<string, number> }
 
 interface Props {
-  tipo: 'linea' | 'sede' | 'marketing' | 'usede'
+  tipo: 'linea' | 'sede' | 'marketing' | 'usede' | 'semi'
   filas: Puesto[]
   /** marcas de la sede (para el reparto a mano) */
   marcas: string[]
@@ -35,7 +37,7 @@ interface Props {
 
 /** Tabla de personal: puestos que se cargan a la sede o a toda la línea, con su fijo, variable y meses activos. */
 export default function TablaPersonal({ tipo, filas, marcas, tc, costo, editable, onCambio, onTc }: Props) {
-  const L = tipo === 'linea' || tipo === 'marketing' // sin reparto por marca
+  const L = tipo === 'linea' || tipo === 'marketing' || tipo === 'semi' // sin reparto por marca
   const [tit, desc, nota] = TEXTO[tipo]
   const set = (i: number, cambio: Partial<Puesto>) => onCambio(filas.map((f, j) => (j === i ? { ...f, ...cambio } : f)))
   const enter = (e: KeyboardEvent) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()
@@ -81,7 +83,7 @@ export default function TablaPersonal({ tipo, filas, marcas, tc, costo, editable
                   <td>
                     <select className="cin borde" value={f.tipo} disabled={!editable} aria-label="Tipo de variable"
                       onChange={(e) => { const t = e.target.value as Puesto['tipo']; set(i, t === 'pctPrima' ? { tipo: t, pSede: f.pSede || 'AREQUIPA', pDesde: f.pDesde || 1, pResto: f.pResto || 1 } : { tipo: t }) }}>
-                      {TIPOS.filter(([v]) => (TIPOS_DE[tipo] as readonly string[]).includes(v) || v === f.tipo).map(([v, n]) => <option key={v} value={v}>{n}</option>)}
+                      {TIPOS.filter(([v]) => (TIPOS_DE[tipo] as readonly string[]).includes(v) || v === f.tipo).map(([v, n]) => <option key={v} value={v}>{tipo === 'semi' && v === 'pctMB' ? '% del MB 3' : n}</option>)}
                     </select>
                     {f.tipo !== 'ninguno' && <> <input className="inp sm" key={'v' + i + f.val + f.tipo} defaultValue={esPct ? Math.round(f.val * 1e6) / 1e4 : f.val} inputMode="decimal" disabled={!editable} aria-label="Valor del variable"
                       onBlur={(e) => { const v = esPct ? leer(e.target.value) / 100 : leer(e.target.value); if (v !== f.val) set(i, { val: v }) }} onKeyDown={enter} /> {esPct ? '%' : 'S/'}</>}
