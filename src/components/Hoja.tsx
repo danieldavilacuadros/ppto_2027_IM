@@ -24,11 +24,13 @@ interface Props {
   vinculadas?: Set<string>
   /** si la columna histórica viene del contable: texto para el encabezado (y no se edita) */
   histReal?: string | null
+  /** supuestos fijos que se abren a edición en esta hoja (excepciones por sede y marca) */
+  abiertos?: Set<string>
   onCambio: (d: Datos) => void
 }
 
 /** Tabla de llenado de una hoja: rubro, supuesto, 12 meses, año e histórico. */
-export default function Hoja({ fmt, hoja, datos, cols, ife, editable, nivel, vinculadas, histReal, onCambio }: Props) {
+export default function Hoja({ fmt, hoja, datos, cols, ife, editable, nivel, vinculadas, histReal, abiertos, onCambio }: Props) {
   const filas = useMemo(() => fmt.filas(hoja, datos), [fmt, hoja, datos])
 
   const setP = (k: string, f: string, txt: string) => {
@@ -80,7 +82,7 @@ export default function Hoja({ fmt, hoja, datos, cols, ife, editable, nivel, vin
             return (
               <tr key={idx} className={cls} data-l={fmt.nivel(f)}>
                 <td className="c-rub"><div className="rub"><i>{x || ''}</i><span><em>{lab}</em> {tag}{nota && <small>{nota}</small>}</span></div></td>
-                <td className="c-sup">{sup ? (sup.e && editable
+                <td className="c-sup">{sup ? ((sup.e || abiertos?.has(sup.k)) && editable
                   ? <><input className="inp" key={'p' + sup.k + datos.P[sup.k]} defaultValue={supTxt(datos.P[sup.k], sup.f)} inputMode="decimal" aria-label={`${lab}: supuesto`}
                       onBlur={(e) => setP(sup.k, sup.f, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />{sup.f === 'pct' && ' %'}</>
                   : <span className="fix">{supFijo(datos.P[sup.k] ?? 0, sup.f)}</span>) : null}</td>

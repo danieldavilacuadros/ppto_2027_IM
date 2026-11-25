@@ -11,6 +11,10 @@ import { filas001DesdeHistorico, promedioMensual } from '../formatos/historico'
 import { GS, gastosDesdeHistorico, histSede } from '../formatos/fu001sede.js'
 
 const ANIO = 2027
+/** Supuestos fijos que se abren a edición solo en ciertas hojas: FU-001 · marca → sedes → claves de P */
+const ABIERTOS: Record<string, { sedes: string[]; claves: string[] }> = {
+  'Hyundai CV': { sedes: ['AREQUIPA', 'CUSCO', 'ICA', 'JULIACA'], claves: ['fleteCli'] },
+}
 type Estado = 'ejemplo' | 'guardado' | 'guardando' | 'pendiente' | 'error'
 const recordar = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* sin almacenamiento */ } }
 const leerLS = (k: string) => { try { return localStorage.getItem(k) ?? '' } catch { return '' } }
@@ -363,6 +367,7 @@ export default function Formatos() {
             </div>
           </div>
           <Hoja fmt={fmt} hoja={hoja.id} datos={conEnlaces!} cols={cols} ife={ife} editable={puedeEditar} nivel={nivel} vinculadas={vinculadas}
+            abiertos={fmt.id === 'FU-001' && hoja.id === 'marca' && ABIERTOS[marcaOk]?.sedes.includes(sedeOk) ? new Set(ABIERTOS[marcaOk].claves) : undefined}
             histReal={hist ? `real ene–${['', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic'][hist.meses] ?? ''}` : null} onCambio={(d) => {
             // lo enlazado no se guarda en esta hoja
             const M = { ...d.M }; Object.keys(enlaces).forEach((k) => { M[k] = datos.M[k] })
