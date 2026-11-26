@@ -92,18 +92,18 @@ export function rowsL(){
     ['barr','Volumen · barriles','g',8],...inp('barr'),
     ['fact','Facturación bruta','g',11],...inp('fact'),
     ['costo','Costo','g',14],...inp('costo'),
-    ['mb1','MB 1 · Transacción','s',17],['mb1','','p'],
+    ['mb1','MB 1 · Transacción','s',17],['mb1','% sobre la facturación bruta','p'],
     ['','Margen bruto','sec'],
     ...inp('mb2'),
-    ['mb2','MB 2','s',24],['mb2','','p'],
+    ['mb2','MB 2','s',24],['mb2','% sobre la facturación bruta','p'],
     ...inp('mb3'),
-    ['mb3','MB 3','s',32],['mb3','','p'],
+    ['mb3','MB 3','s',32],['mb3','% sobre la facturación bruta','p'],
     ['','Gastos de operación','sec'],
     ...grp('rem','Remuneraciones',35),...grp('servG','Servicios varios',42),...grp('mkt','Marketing',51),...grp('repr','Representación',58),
     ['gop','Gastos de operación','s',null,null,{cls:'gop'}],
-    ['mc','Margen de contribución','s',64,null,{cls:'mc'}],['mc','','p'],
+    ['mc','Margen de contribución','s',64,null,{cls:'mc'}],['mc','% sobre la facturación bruta','p'],
     ['','Gastos propios del negocio','sec'],
     ...grp('alq','Alquiler',68),...grp('depm','Depreciación y mantenimiento',73),...grp('sbas','Servicios básicos',79),...grp('fin','Financieros',86),
     ['gest','Gastos propios del negocio','s',null,null,{cls:'gop'}],
-    ['ro','Resultado operativo','s',91,null,{cls:'mc'}],['ro','','p']];
+    ['ro','Resultado operativo','s',91,null,{cls:'mc'}],['ro','% sobre la facturación bruta','p']];
 }

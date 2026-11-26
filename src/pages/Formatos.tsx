@@ -326,12 +326,12 @@ export default function Formatos() {
             </select>
           </label>
         )}
-        <div className="ctx"><span>Check IF&amp;E</span>
+        {fmt.id !== 'FU-006-L' && <div className="ctx"><span>Check IF&amp;E</span>
           <div className="seg dos">
             <input type="radio" id="ife-i" name="ife" checked={ife} disabled={!perm.esAdmin || perm.previa} onChange={() => void cambiarIfe(true)} /><label htmlFor="ife-i">Integrado</label>
             <input type="radio" id="ife-n" name="ife" checked={!ife} disabled={!perm.esAdmin || perm.previa} onChange={() => void cambiarIfe(false)} /><label htmlFor="ife-n">Independiente</label>
           </div>
-        </div>
+        </div>}
       </div>
 
       <p className="muted">{hoja.descripcion}</p>
