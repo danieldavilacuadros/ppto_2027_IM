@@ -5,6 +5,7 @@ import { XB, columnsB, rowsB, conPlanB } from './fu001b.js'
 import { XU, computeSede, rowsSede } from './fu001sede.js'
 import { XS, computeS, rowsS } from './fu004s.js'
 import { XLUB, computeL, rowsL } from './fu006l.js'
+import { X002, compute002, rows002 } from './fu002.js'
 
 export type Col = Record<string, number>
 /** Un puesto de la tabla de personal. fijo y monto en S/ al mes; val de % como fracción. */
@@ -40,9 +41,9 @@ export type Fila = [string, string, string, number?, (Sup | null)?, Extra?]
 export type Alcance = 'marca' | 'sede' | 'corp' | 'total' | 'linea'
 export interface HojaDef { id: string; nombre: string; alcance: Alcance; descripcion: string }
 export interface FormatoDef {
-  id: 'FU-001' | 'FU-001-A' | 'FU-001-B' | 'FU-004-S' | 'FU-006-L'
+  id: 'FU-001' | 'FU-001-A' | 'FU-001-B' | 'FU-002' | 'FU-004-S' | 'FU-006-L'
   nombre: string
-  linea: 'unidades' | 'ife' | 'marketing' | 'seminuevos' | 'lubricantes'
+  linea: 'unidades' | 'ife' | 'marketing' | 'posventa' | 'seminuevos' | 'lubricantes'
   /** sedes donde existe el formato (por defecto todas) */
   sedes?: string[]
   hojas: HojaDef[]
@@ -175,7 +176,23 @@ const FU006L: FormatoDef = {
   kpis: () => [['Barriles 2027', 'barr', 'int'], ['Facturación bruta', 'fact', 'money'], ['MB 3', 'mb3', 'money'], ['Margen de contribución', 'mc', 'money'], ['Resultado operativo', 'ro', 'money']],
 }
 
-export const FORMATOS: FormatoDef[] = [FU001, FU001A, FU001B, FU004S, FU006L]
+// ───────── FU-002 ─────────
+const FU002: FormatoDef = {
+  id: 'FU-002', nombre: 'Posventa', linea: 'posventa', sedes: ['AREQUIPA', 'CUSCO', 'ICA', 'JULIACA'],
+  hojas: [
+    { id: 'rep', nombre: 'Repuestos', alcance: 'sede', descripcion: 'Repuestos de la sede: facturación, costo y márgenes MB 1 a MB 3, gastos directos hasta el margen de contribución y gastos indirectos hasta el resultado operativo neto. Gastos en negativo.' },
+    { id: 'taller', nombre: 'Taller', alcance: 'sede', descripcion: 'Taller de la sede, sin planchado y pintura: pasos vehiculares, facturación, márgenes, gastos directos y gastos indirectos hasta el resultado operativo neto. Gastos en negativo.' },
+    { id: 'pyp', nombre: 'PyP', alcance: 'sede', descripcion: 'Planchado y pintura de la sede: facturación, márgenes, gastos directos y gastos indirectos hasta el resultado operativo neto. Gastos en negativo.' },
+  ],
+  ejemplo: () => copia(X002 as Datos),
+  filas: () => rows002() as Fila[],
+  calcular: (_h, d) => compute002(d) as unknown as Col[],
+  nivel: ([, , t]) => t === 's' ? 1 : t === 'g' ? 2 : 3,
+  pct: ([id], c) => c[id] / c.fact,
+  kpis: (h) => [h === 'taller' ? ['Pasos vehiculares', 'pasos', 'int'] : ['MB 1 · Transacción', 'mb1', 'money'], ['Facturación', 'fact', 'money'], ['MB 3', 'mb3', 'money'], ['Margen de contribución', 'mc', 'money'], ['Resultado operativo neto', 'ron', 'money']],
+}
+
+export const FORMATOS: FormatoDef[] = [FU001, FU001A, FU001B, FU002, FU004S, FU006L]
 
 // ───────── Enlaces entre formatos ─────────
 const SUMA13 = (arrs: number[][]) => Array.from({ length: 13 }, (_, i) => arrs.reduce((a, x) => a + (x[i] || 0), 0))
