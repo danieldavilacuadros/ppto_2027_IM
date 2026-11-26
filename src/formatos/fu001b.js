@@ -45,10 +45,9 @@ export function columnsB(kind,st){
 export function rowsB(k){
     if(NEG_B[k]) return [
       ['','Marketing de '+NEG_B[k],'sec'],
+      ...(k==='semi'?[['refU','Unidades vendidas','c',null,null,{int:1,src:'FU-004-S',note:'Referencia, no se edita'}]]:k==='posv'?[['refU','Pasos vehiculares (Taller)','c',null,null,{int:1,src:'FU-002',note:'Referencia, no se edita'}]]:[]),
+      ['refIng', k==='fin'?'Ingresos de intermediación financiera (créditos, seguros y fondos)':k==='acc'?'Ingresos por venta de accesorios':k==='semi'?'Ingresos de Seminuevos (venta de unidades y alquileres)':'Ingresos de Posventa (Repuestos + Taller + PyP)','c',null,null,{note:'Referencia, no se edita',src:k==='fin'||k==='acc'?'FU-001-A':k==='semi'?'FU-004-S':'FU-002'}],
       ['gas','(−) Gastos de marketing','in',null,null,{m:'gas',note:'Monto del mes en US$; siempre resta, sin recobro'}],
-      ['','Referencia del negocio · para guiarse (no se edita)','sec'],
-      ...(k==='semi'?[['refU','Unidades vendidas','c',null,null,{ind:1,int:1,src:'FU-004-S'}]]:k==='posv'?[['refU','Pasos vehiculares (Taller)','c',null,null,{ind:1,int:1,src:'FU-002'}]]:[]),
-      ['refIng', k==='fin'?'Ingresos de intermediación financiera (créditos, seguros y fondos)':k==='acc'?'Ingresos por venta de accesorios':k==='semi'?'Ingresos de Seminuevos (venta de unidades y alquileres)':'Ingresos de Posventa (Repuestos + Taller + PyP)','c',null,null,{ind:1,src:k==='fin'||k==='acc'?'FU-001-A':k==='semi'?'FU-004-S':'FU-002'}],
       ['pctIng','Gasto de marketing sobre los ingresos','p'],
       ...(k==='semi'||k==='posv'?[['porU',k==='semi'?'Gasto de marketing por unidad vendida (US$)':'Gasto de marketing por paso vehicular (US$)','c',null,null,{ind:1,dec:2}]]:[]),
       ['','Enlace','sec'],
