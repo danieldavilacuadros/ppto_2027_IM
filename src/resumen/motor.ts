@@ -204,11 +204,11 @@ export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: st
     const sc = semi.get(x.sede)
     if (sc) piezas.push({ sede: x.sede, marca: null, negocio: 'semi', vol: de(sc, 'u'), fact: de(sc, 'fact'), mb: de(sc, 'mb3'), mc: de(sc, 'mc'), gs: de(sc, 'gsede') })
   }
-  // Lubricantes (FU-006-L): una hoja nacional; su resultado operativo ya incluye sus gastos propios
+  // Lubricantes (FU-006-L): una hoja nacional; sus gastos propios (alquiler, depreciación, servicios, fianza) van como gastos de sede del negocio
   const lubG = por('FU-006-L', 'total')[0]?.datos
   if (!lubG) avisos.push('Lubricantes: aún no se guarda la hoja; se muestran los valores del Excel de referencia.')
   const lubC = computeL(completar(copia(XLUB as Datos), lubG)) as unknown as Col[]
-  piezas.push({ sede: null, marca: null, negocio: 'lub', vol: de(lubC, 'barr'), fact: de(lubC, 'fact'), mb: de(lubC, 'mb3'), mc: de(lubC, 'ro') })
+  piezas.push({ sede: null, marca: null, negocio: 'lub', vol: de(lubC, 'barr'), fact: de(lubC, 'fact'), mb: de(lubC, 'mb3'), mc: de(lubC, 'mc'), gs: de(lubC, 'gest') })
   if (corpC) piezas.push({ sede: null, marca: null, negocio: 'corp', vol: de(corpC, ops), fact: de(corpC, ingA), mb: de(corpC, 'mb'), mc: sum(de(corpC, 'mc'), lineaDe('corp')) })
   if (mktG) piezas.push({ sede: null, marca: null, negocio: 'mkt', mc: area })
   const marcas = [...new Set(porSede.flatMap((x) => x.marcas.map((m) => m.marca)))].sort((a, b) => om(a) - om(b))
@@ -238,12 +238,14 @@ export function agrupar(b: Base, f: Filtro): Resumen {
   const marcasDe = (ps: Pieza[]) => b.marcas.filter((m) => ps.some((p) => p.marca === m))
 
   // ── Por negocio (→ sede → marca)
+  // cada negocio carga los gastos de sus sedes (personal de sede, alquileres, servicios…): resultado del negocio = MC + gastos de sede
+  const met = (ps: Pieza[]) => ({ vol: suma(ps, 'vol'), fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: suma(ps, 'mc'), gsede: suma(ps, 'gs'), util: util(ps) })
   const nodoNeg = (id: string, nombre: string, ps: Pieza[], volTxt: string, nota: string): Nodo => ({
-    id, nombre, volTxt, nota, vol: suma(ps, 'vol'), fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: suma(ps, 'mc'),
+    id, nombre, volTxt, nota, ...met(ps),
     hijos: sedesDe(ps).map((s) => {
       const pss = ps.filter((p) => p.sede === s)
-      return { id: `${id}|${s}`, nombre: s, vol: suma(pss, 'vol'), fact: suma(pss, 'fact'), mb: suma(pss, 'mb'), mc: suma(pss, 'mc'),
-        hijos: marcasDe(pss).map((m) => { const pm = pss.filter((p) => p.marca === m); return { id: `${id}|${s}|${m}`, nombre: m, vol: suma(pm, 'vol'), fact: suma(pm, 'fact'), mb: suma(pm, 'mb'), mc: suma(pm, 'mc') } }) }
+      return { id: `${id}|${s}`, nombre: s, ...met(pss),
+        hijos: marcasDe(pss).map((m) => ({ id: `${id}|${s}|${m}`, nombre: m, ...met(pss.filter((p) => p.marca === m)) })) }
     }),
   })
   const pend = (id: string, nombre: string, volTxt: string): Nodo => ({ id, nombre, volTxt, pendiente: true, nota: 'Formato pendiente' })
@@ -255,35 +257,32 @@ export function agrupar(b: Base, f: Filtro): Resumen {
   if (!conNeg) negs.push(pend('posventa', 'Posventa', 'pasos vehiculares'))
   if (okNeg('semi') && !conMarca) {
     const ps = de_('semi')
-    negs.push(ps.length ? { id: 'semi', nombre: 'Seminuevos', volTxt: 'unidades', vol: suma(ps, 'vol'), fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: util(ps),
-      nota: 'Después de sus propios gastos de sede (local y personal)' } : { id: 'semi', nombre: 'Seminuevos', volTxt: 'unidades', pendiente: true, nota: 'Solo en Arequipa' })
+    negs.push(ps.length ? { id: 'semi', nombre: 'Seminuevos', volTxt: 'unidades', ...met(ps),
+      nota: 'Con sus propios gastos de sede (local y personal)' } : { id: 'semi', nombre: 'Seminuevos', volTxt: 'unidades', pendiente: true, nota: 'Solo en Arequipa' })
   }
   if (okNeg('lub') && !conSede && !conMarca) {
     const ps = de_('lub')
-    negs.push(ps.length ? { id: 'lub', nombre: 'Lubricantes', volTxt: 'barriles', vol: suma(ps, 'vol'), fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: suma(ps, 'mc'),
-      nota: 'Hoja nacional; resultado operativo después de sus gastos propios (alquiler, depreciación, servicios y carta de fianza)' } : pend('lub', 'Lubricantes', 'barriles'))
+    negs.push(ps.length ? { id: 'lub', nombre: 'Lubricantes', volTxt: 'barriles', ...met(ps),
+      nota: 'Hoja nacional; sus gastos propios (alquiler, depreciación, servicios y carta de fianza) van como gastos de sede' } : pend('lub', 'Lubricantes', 'barriles'))
   }
   if (okNeg('corp') && !conSede && !conMarca) {
     const ps = de_('corp')
-    negs.push(ps.length ? { id: 'corp', nombre: 'Canal Corporativo', volTxt: 'operaciones F&I', vol: suma(ps, 'vol'), fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: suma(ps, 'mc'),
+    negs.push(ps.length ? { id: 'corp', nombre: 'Canal Corporativo', volTxt: 'operaciones F&I', ...met(ps),
       nota: 'Por ahora solo su IF&E (con su parte de los gastos de línea); los vehículos (FU-005-C) están pendientes' } : pend('corp', 'Canal Corporativo · vehículos (FU-005-C)', 'unidades'))
   }
   const negocioPs = P.filter((p) => p.negocio !== 'mkt')
-  // Seminuevos ya viene con sus gastos; el resto de gastos de sede va en su fila
-  const contrib = sum(...negocioPs.map((p) => (p.negocio === 'semi' ? sum(p.mc, p.gs) : p.mc)))
-  const gs = sum(...negocioPs.filter((p) => p.negocio !== 'semi').map((p) => p.gs))
+  // los gastos de sede ya están imputados a cada negocio (en su columna)
+  const contrib = suma(negocioPs, 'mc')
   const area = suma(de_('mkt'), 'mc')
   const fact = suma(negocioPs, 'fact'), mb = suma(negocioPs, 'mb')
-  const res = sum(contrib, gs, area)
-  negs.push({ id: 'contrib', nombre: 'Contribución de los negocios', fact, mb, mc: contrib, tipo: 'sub' })
-  const pgs = negocioPs.filter((p) => p.negocio !== 'semi' && p.gs)
-  negs.push({ id: 'gsede', nombre: 'Gastos de las sedes', mc: gs, tipo: 'ajuste', nota: 'Personal de sede, alquileres, servicios, gestión, impuestos, seguros y honorarios',
-    hijos: sedesDe(pgs).map((s) => ({ id: 'g|' + s, nombre: s, mc: suma(pgs.filter((p) => p.sede === s), 'gs') })) })
-  if (de_('mkt').length) negs.push({ id: 'mkt', nombre: 'Marketing · gastos del área', mc: area, tipo: 'ajuste', nota: 'El marketing de cada marca ya está en Unidades; esto es el área (va a FU-003)' })
+  const resNeg = util(negocioPs)
+  const res = sum(resNeg, area)
+  negs.push({ id: 'contrib', nombre: 'Total de los negocios', fact, mb, mc: contrib, gsede: suma(negocioPs, 'gs'), util: resNeg, tipo: 'sub' })
+  if (de_('mkt').length) negs.push({ id: 'mkt', nombre: 'Marketing · gastos del área', util: area, tipo: 'ajuste', nota: 'El marketing de cada marca ya está en Unidades; esto es el área (va a FU-003)' })
   const filtrado = conSede || conMarca || conNeg
   if (!filtrado) negs.push(pend('fu003', 'Estructura de la empresa (FU-003)', ''))
   const tituloTotal = filtrado ? 'Resultado de lo filtrado' : 'Resultado de la empresa (antes de estructura)'
-  negs.push({ id: 'total', nombre: tituloTotal, fact, mb, mc: res, tipo: 'total' })
+  negs.push({ id: 'total', nombre: tituloTotal, fact, mb, util: res, tipo: 'total' })
 
   // ── Por sede (→ marca y Seminuevos)
   const sedePs = negocioPs.filter((p) => p.sede !== null)
@@ -297,7 +296,7 @@ export function agrupar(b: Base, f: Filtro): Resumen {
   })
   const totS: Nodo = { ...filaSede('s|tot', 'Total sedes', sedePs), tipo: 'sub' }
   const extra: Nodo[] = []
-  const pl = de_('lub'); if (pl.length) extra.push({ id: 's|lub', nombre: 'Lubricantes (nacional)', fact: suma(pl, 'fact'), util: suma(pl, 'mc'), tipo: 'ajuste' })
+  const pl = de_('lub'); if (pl.length) extra.push({ id: 's|lub', nombre: 'Lubricantes (nacional)', fact: suma(pl, 'fact'), cneg: suma(pl, 'mc'), gsede: suma(pl, 'gs'), util: util(pl), tipo: 'ajuste' })
   const pc = de_('corp'); if (pc.length) extra.push({ id: 's|corp', nombre: 'Canal Corporativo (IF&E)', fact: suma(pc, 'fact'), util: suma(pc, 'mc'), tipo: 'ajuste' })
   if (de_('mkt').length) extra.push({ id: 's|mkt', nombre: 'Marketing · gastos del área', util: area, tipo: 'ajuste' })
   const totE: Nodo = { id: 's|emp', nombre: tituloTotal, fact, util: res, tipo: 'total' }

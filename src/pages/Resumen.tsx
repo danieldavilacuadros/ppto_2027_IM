@@ -78,7 +78,8 @@ export default function Resumen() {
         ['Margen de contribución', (n) => money(v(n.mc))], ['% MC s/ fact.', (n) => v(n.fact) ? pct(v(n.mc) / v(n.fact)) : ''], ['Utilidad en las sedes', (n) => money(v(n.util))]]
       : [['Volumen', (n) => n.pendiente ? '' : n.vol ? `${entero(v(n.vol))}${n.volTxt ? ' ' + n.volTxt : ''}` : ''], ['Facturación', (n) => money(v(n.fact))],
         ['Margen final (MB 3)', (n) => money(v(n.mb))], ['Margen de contribución', (n) => n.pendiente ? 'pendiente' : money(v(n.mc))],
-        ['% MC s/ fact.', (n) => n.fact && v(n.fact) && n.mc ? pct(v(n.mc) / v(n.fact)) : '']]
+        ['Gastos de sede', (n) => money(v(n.gsede))], ['Resultado del negocio', (n) => n.pendiente ? 'pendiente' : money(v(n.util))],
+        ['% s/ facturación', (n) => n.fact && v(n.fact) && n.util ? pct(v(n.util) / v(n.fact)) : '']]
   const filas = vista === 'sede' ? r.sedes : vista === 'marca' ? r.marcas : r.negocios
 
   // nivel visible: el primero, o los hijos del último nodo de la ruta (con el nodo como columna de total)
@@ -171,6 +172,7 @@ export default function Resumen() {
         <ul className="muted small res-notas">
           <li><b>Facturación</b>: venta de unidades más los ingresos de IF&amp;E (intermediación y venta de equipamiento). <b>Margen final</b>: MB 3 de Unidades (con cortesías, fletes, intermediación, equipamiento, bonos y placas){ife ? '' : ' más el MB de IF&E'}. <b>Margen de contribución</b>: después de los gastos de operación de cada negocio.</li>
           <li><b>IF&amp;E integrado</b>: todo IF&amp;E va dentro de Unidades: su margen, sus gastos propios de cada sede y su parte de los gastos de línea. Los gastos de línea se reparten entre las sedes por facturación de vehículos, y los gastos de IF&amp;E de cada sede se reparten a sus marcas según el margen de IF&amp;E de cada una (criterios provisionales). El IF&amp;E del Canal Corporativo, con su parte de los gastos de línea, va en la columna Canal Corporativo. <b>Independiente</b>: IF&amp;E es una línea propia con su margen, sus gastos y los gastos de línea. El resultado de la empresa es el mismo salvo las comisiones a vendedores por F&amp;I, que cada modo calcula distinto.</li>
+          <li><b>Por negocio</b>: cada negocio carga los gastos de sus sedes (personal de sede, alquileres, servicios, gestión, impuestos, seguros y honorarios; en Lubricantes, sus gastos propios) y llega a su <b>resultado del negocio</b>. Al abrir Unidades, cada sede y cada marca muestran su parte de esos gastos.</li>
           <li><b>Por sede</b>: la utilidad de cada sede es la contribución del negocio menos sus gastos (personal, alquileres, servicios…). Al abrir una sede se ve cada marca con su parte de los gastos, repartidos por facturación de vehículos (criterio provisional).</li>
           <li><b>Seminuevos</b> (solo Arequipa) entra con su resultado después de sus propios gastos de local y personal, y en «Por sede» se suma a Arequipa. <b>Lubricantes</b> es una hoja nacional y entra con su resultado operativo (después de sus gastos propios); en «Por sede» va en una fila aparte. Faltan los negocios con formato pendiente (Posventa y Canal Corporativo de vehículos) y la estructura de la empresa (FU-003): el resultado es <b>antes de estructura</b>.</li>
         </ul>
