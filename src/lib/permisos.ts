@@ -41,5 +41,7 @@ export function usePermisos() {
     const set = new Set(js.flatMap((j) => j.marcas))
     return todas.filter((m) => set.has(m))
   }
-  return { listo: accesos !== null, ver, editar, podriaEditar, marcasDeSede, esAdmin, previa, verComo }
+  /** Si tiene al menos un acceso en la línea (para mostrar solo los formatos que le tocan) */
+  const tieneLinea = (linea: string) => todo || esGerente || [...(accesos?.keys() ?? [])].some((k) => k.startsWith(linea + '|'))
+  return { listo: accesos !== null, ver, editar, podriaEditar, marcasDeSede, tieneLinea, esAdmin, previa, verComo }
 }

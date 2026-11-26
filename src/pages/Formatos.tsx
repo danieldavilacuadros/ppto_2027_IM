@@ -31,7 +31,9 @@ export default function Formatos() {
   const { cat } = useCatalogo()
   const perm = usePermisos()
   const [fmtId, setFmtId] = useState(() => leerLS('ppto-fmt') || 'FU-001')
-  const fmt: FormatoDef = FORMATOS.find((f) => f.id === fmtId) ?? FORMATOS[0]
+  // solo los formatos donde la persona tiene alguna hoja asignada
+  const visibles = perm.listo ? FORMATOS.filter((f) => perm.tieneLinea(f.linea)) : FORMATOS
+  const fmt: FormatoDef = visibles.find((f) => f.id === fmtId) ?? visibles[0] ?? FORMATOS[0]
   const [hojaId, setHojaId] = useState('marca')
   const hoja = fmt.hojas.find((h) => h.id === hojaId) ?? fmt.hojas[0]
   const [sede, setSede] = useState(() => leerLS('ppto-sede'))
@@ -352,7 +354,7 @@ export default function Formatos() {
       </div>
 
       <nav className="subtabs" aria-label="Formato">
-        {FORMATOS.map((f) => <a key={f.id} href="#" className={f.id === fmt.id ? 'active' : ''}
+        {visibles.map((f) => <a key={f.id} href="#" className={f.id === fmt.id ? 'active' : ''}
           onClick={(e) => { e.preventDefault(); setFmtId(f.id); setHojaId('marca'); recordar('ppto-fmt', f.id) }}>{f.id} · {f.nombre}</a>)}
       </nav>
 
