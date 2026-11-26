@@ -4,6 +4,7 @@ import { XA, LEAF, columnsA, rowsA, rowsTotalA, totalA, acumularA, conPlanSede, 
 import { XB, columnsB, rowsB, conPlanB } from './fu001b.js'
 import { XU, computeSede, rowsSede } from './fu001sede.js'
 import { XS, computeS, rowsS } from './fu004s.js'
+import { XLUB, computeL, rowsL } from './fu006l.js'
 
 export type Col = Record<string, number>
 /** Un puesto de la tabla de personal. fijo y monto en S/ al mes; val de % como fracción. */
@@ -39,9 +40,9 @@ export type Fila = [string, string, string, number?, (Sup | null)?, Extra?]
 export type Alcance = 'marca' | 'sede' | 'corp' | 'total' | 'linea'
 export interface HojaDef { id: string; nombre: string; alcance: Alcance; descripcion: string }
 export interface FormatoDef {
-  id: 'FU-001' | 'FU-001-A' | 'FU-001-B' | 'FU-004-S'
+  id: 'FU-001' | 'FU-001-A' | 'FU-001-B' | 'FU-004-S' | 'FU-006-L'
   nombre: string
-  linea: 'unidades' | 'ife' | 'marketing' | 'seminuevos'
+  linea: 'unidades' | 'ife' | 'marketing' | 'seminuevos' | 'lubricantes'
   /** sedes donde existe el formato (por defecto todas) */
   sedes?: string[]
   hojas: HojaDef[]
@@ -160,7 +161,21 @@ const FU004S: FormatoDef = {
   kpis: () => [['Unidades 2027', 'u', 'int'], ['Venta 2027', 'venta', 'money'], ['MB 3', 'mb3', 'money'], ['Margen de contribución', 'mc', 'money'], ['Utilidad de Seminuevos', 'usede', 'money']],
 }
 
-export const FORMATOS: FormatoDef[] = [FU001, FU001A, FU001B, FU004S]
+// ───────── FU-006-L ─────────
+const FU006L: FormatoDef = {
+  id: 'FU-006-L', nombre: 'Lubricantes', linea: 'lubricantes',
+  hojas: [
+    { id: 'total', nombre: 'Lubricantes · nacional', alcance: 'total', descripcion: 'Una sola hoja nacional (2027): volumen y facturación B2C y B2B, márgenes MB 1 a MB 3, gastos de operación hasta el margen de contribución y gastos propios del negocio hasta el resultado operativo. Ingresos en positivo; costos y gastos en negativo.' },
+  ],
+  ejemplo: () => copia(XLUB as Datos),
+  filas: () => rowsL() as Fila[],
+  calcular: (_h, d) => computeL(d) as unknown as Col[],
+  nivel: ([, , t]) => t === 's' ? 1 : t === 'g' ? 2 : 3,
+  pct: ([id], c) => c[id] / c.fact,
+  kpis: () => [['Barriles 2027', 'barr', 'int'], ['Facturación bruta', 'fact', 'money'], ['MB 3', 'mb3', 'money'], ['Margen de contribución', 'mc', 'money'], ['Resultado operativo', 'ro', 'money']],
+}
+
+export const FORMATOS: FormatoDef[] = [FU001, FU001A, FU001B, FU004S, FU006L]
 
 // ───────── Enlaces entre formatos ─────────
 const SUMA13 = (arrs: number[][]) => Array.from({ length: 13 }, (_, i) => arrs.reduce((a, x) => a + (x[i] || 0), 0))

@@ -96,8 +96,11 @@ export default function Permisos({ cfg, cat }: { cfg: Cfg; cat: Catalogo }) {
       {cat.sedes.map((s) => <tr key={s}><th className="rh" scope="row"><b>{s}</b></th><td>{casilla(s, '*', `${L.nombre} en ${s}`)}</td></tr>)}
     </tbody></table>
   } else {
-    grid = <table className="pt"><tbody><tr><th className="rh" scope="row"><b>{L.nombre}</b><span className="muted small d-block">Todo el formato {L.formato}</span></th>
-      <td>{casilla('*', '*', L.nombre)}</td></tr></tbody></table>
+    // línea global: una casilla por hoja nacional (extras) o una sola para todo el formato
+    const hojas: [string, string][] = L.extras.length ? L.extras : [['*', 'Todo el formato ' + L.formato]]
+    grid = <table className="pt"><tbody>{hojas.map(([k, n]) => (
+      <tr key={k}><th className="rh" scope="row"><b>{L.nombre}</b><span className="muted small d-block">{n}</span></th>
+        <td>{casilla('*', k, `${L.nombre} · ${n}`)}</td></tr>))}</tbody></table>
   }
 
   return (

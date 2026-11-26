@@ -4,6 +4,7 @@ import { FORMATOS, enlacesHacia001, sumaMarcasA, sumaMarcasB, baseNacionalA, typ
 import { columnsA, lineaA } from '../formatos/fu001a.js'
 import { XU, GS, computeSede, gastosDesdeHistorico } from '../formatos/fu001sede.js'
 import { XS, computeS } from '../formatos/fu004s.js'
+import { XLUB, computeL } from '../formatos/fu006l.js'
 
 export type Serie = number[] // 13: ene…dic, año
 export interface Nodo {
@@ -50,7 +51,7 @@ const [F0, F1, F2] = FORMATOS
 export interface Pieza {
   sede: string | null
   marca: string | null
-  negocio: 'unidades' | 'ife' | 'semi' | 'corp' | 'mkt'
+  negocio: 'unidades' | 'ife' | 'semi' | 'lub' | 'corp' | 'mkt'
   vol?: Serie
   fact?: Serie
   mb?: Serie
@@ -203,13 +204,18 @@ export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: st
     const sc = semi.get(x.sede)
     if (sc) piezas.push({ sede: x.sede, marca: null, negocio: 'semi', vol: de(sc, 'u'), fact: de(sc, 'fact'), mb: de(sc, 'mb3'), mc: de(sc, 'mc'), gs: de(sc, 'gsede') })
   }
+  // Lubricantes (FU-006-L): una hoja nacional; su resultado operativo ya incluye sus gastos propios
+  const lubG = por('FU-006-L', 'total')[0]?.datos
+  if (!lubG) avisos.push('Lubricantes: aún no se guarda la hoja; se muestran los valores del Excel de referencia.')
+  const lubC = computeL(completar(copia(XLUB as Datos), lubG)) as unknown as Col[]
+  piezas.push({ sede: null, marca: null, negocio: 'lub', vol: de(lubC, 'barr'), fact: de(lubC, 'fact'), mb: de(lubC, 'mb3'), mc: de(lubC, 'ro') })
   if (corpC) piezas.push({ sede: null, marca: null, negocio: 'corp', vol: de(corpC, ops), fact: de(corpC, ingA), mb: de(corpC, 'mb'), mc: sum(de(corpC, 'mc'), lineaDe('corp')) })
   if (mktG) piezas.push({ sede: null, marca: null, negocio: 'mkt', mc: area })
   const marcas = [...new Set(porSede.flatMap((x) => x.marcas.map((m) => m.marca)))].sort((a, b) => om(a) - om(b))
   return { piezas, avisos, sedes, marcas, ife }
 }
 
-export const NEGOCIOS: Record<string, string> = { unidades: 'Unidades', ife: 'IF&E', semi: 'Seminuevos', corp: 'Canal Corporativo' }
+export const NEGOCIOS: Record<string, string> = { unidades: 'Unidades', ife: 'IF&E', semi: 'Seminuevos', lub: 'Lubricantes', corp: 'Canal Corporativo' }
 
 /** Suma las piezas según los filtros y arma los indicadores y las tres vistas. */
 export function agrupar(b: Base, f: Filtro): Resumen {
@@ -252,7 +258,11 @@ export function agrupar(b: Base, f: Filtro): Resumen {
     negs.push(ps.length ? { id: 'semi', nombre: 'Seminuevos', volTxt: 'unidades', vol: suma(ps, 'vol'), fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: util(ps),
       nota: 'Después de sus propios gastos de sede (local y personal)' } : { id: 'semi', nombre: 'Seminuevos', volTxt: 'unidades', pendiente: true, nota: 'Solo en Arequipa' })
   }
-  if (!conNeg) negs.push(pend('lubricantes', 'Lubricantes', 'barriles'))
+  if (okNeg('lub') && !conSede && !conMarca) {
+    const ps = de_('lub')
+    negs.push(ps.length ? { id: 'lub', nombre: 'Lubricantes', volTxt: 'barriles', vol: suma(ps, 'vol'), fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: suma(ps, 'mc'),
+      nota: 'Hoja nacional; resultado operativo después de sus gastos propios (alquiler, depreciación, servicios y carta de fianza)' } : pend('lub', 'Lubricantes', 'barriles'))
+  }
   if (okNeg('corp') && !conSede && !conMarca) {
     const ps = de_('corp')
     negs.push(ps.length ? { id: 'corp', nombre: 'Canal Corporativo', volTxt: 'operaciones F&I', vol: suma(ps, 'vol'), fact: suma(ps, 'fact'), mb: suma(ps, 'mb'), mc: suma(ps, 'mc'),
@@ -287,6 +297,7 @@ export function agrupar(b: Base, f: Filtro): Resumen {
   })
   const totS: Nodo = { ...filaSede('s|tot', 'Total sedes', sedePs), tipo: 'sub' }
   const extra: Nodo[] = []
+  const pl = de_('lub'); if (pl.length) extra.push({ id: 's|lub', nombre: 'Lubricantes (nacional)', fact: suma(pl, 'fact'), util: suma(pl, 'mc'), tipo: 'ajuste' })
   const pc = de_('corp'); if (pc.length) extra.push({ id: 's|corp', nombre: 'Canal Corporativo (IF&E)', fact: suma(pc, 'fact'), util: suma(pc, 'mc'), tipo: 'ajuste' })
   if (de_('mkt').length) extra.push({ id: 's|mkt', nombre: 'Marketing · gastos del área', util: area, tipo: 'ajuste' })
   const totE: Nodo = { id: 's|emp', nombre: tituloTotal, fact, util: res, tipo: 'total' }
