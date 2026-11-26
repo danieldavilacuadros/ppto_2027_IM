@@ -30,7 +30,13 @@ function Multi({ titulo, todos, valores, sel, onCambio }: { titulo: string; todo
 /** Pestaña de gerencia general: presupuesto de toda la empresa, por negocio, sede y marca. Solo lectura. */
 export default function Resumen() {
   const { cat } = useCatalogo()
-  const [ife, setIfe] = useState(() => leerLS('ppto-res-ife', '1') === '1')
+  // modo de IF&E: el que eligió esta persona en el Resumen; si nunca eligió, el modo global de Formatos (ajustes.ife_modo)
+  const [ife, setIfe] = useState(() => leerLS('ppto-res-ife', '0') === '1')
+  useEffect(() => {
+    if (leerLS('ppto-res-ife', '') !== '') return
+    sb().from('ajustes').select('valor').eq('clave', 'ife_modo').maybeSingle()
+      .then(({ data }) => setIfe((data?.valor ?? 'independiente') !== 'independiente'))
+  }, [])
   const [vista, setVista] = useState<Vista>(() => leerLS('ppto-res-vista', 'negocio') as Vista)
   const [mes, setMes] = useState(12) // 12 = año
   /** ruta de detalle: ids de los nodos abiertos (vacía = primer nivel) */
