@@ -146,7 +146,7 @@ const FU001B: FormatoDef = {
   tablaPersonal: (h) => h === 'total',
   nivel: ([id, , t, , , ex = {}]) => (t === 's' || ['gas', 'rec', 'neto', 'area', 'total'].includes(id)) ? 1 : (t === 'g' || ex.link) ? 2 : 3,
   pct: ([id], c) => c[id],
-  kpis: (h) => ['fin', 'acc', 'semi', 'posv'].includes(h) ? [['Gasto de marketing 2027', 'gas', 'money']] : h === 'marca'
+  kpis: (h) => ['fin', 'acc', 'semi', 'posv'].includes(h) ? [['Gasto de marketing 2027', 'gas', 'money'], ['Ingresos del negocio 2027', 'refIng', 'money'], ['Gasto sobre ingresos', 'pctIng', 'pct']] : h === 'marca'
     ? [['Gasto de marketing 2027', 'gas', 'money'], ['Recobro de marca 2027', 'rec', 'money'], ['Neto de la marca 2027', 'neto', 'money']]
     : [['Neto de las marcas', 'neto', 'money'], ['Gastos del área', 'area', 'money'], ['Marketing total 2027', 'total', 'money']],
 }

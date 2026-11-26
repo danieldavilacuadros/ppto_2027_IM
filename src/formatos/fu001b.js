@@ -11,7 +11,9 @@ export const NEG_B={fin:'financiamiento (intermediación)',acc:'accesorios',semi
 Object.keys(NEG_B).forEach(k=>{ XB[k]={P:{},M:{gas:Array(13).fill(0)}}; });
 export function computeB(kind,P,m){
   const r={};
-  if(NEG_B[kind]){ r.gas=-Math.abs(Number(m.gas)||0); r.eGas=r.gas; return r; }
+  if(NEG_B[kind]){ r.gas=-Math.abs(Number(m.gas)||0); r.eGas=r.gas;
+    // referencia del negocio (llega enlazada, no se guarda): ingresos y volumen
+    r.refIng=Number(m.refIng)||0; r.refU=Number(m.refU)||0; pctsB(r); return r; }
   // kit de bienvenida: siempre es gasto (se acepta escrito en positivo o negativo); no entra al % de recobro
   if(kind==='marca'){ r.gas=m.gas; r.rec=m.rec; r.kit=-Math.abs(Number(m.kit)||0); }
   else { r.gas=m.s_gas; r.rec=m.s_rec; r.kit=Number(m.s_kit)||0; }
@@ -27,7 +29,7 @@ export function computeB(kind,P,m){
   } else { r.e55=r.gas; r.e56=r.rec; r.eKit=r.kit; r.eNet=r.neto; }
   pctsB(r); return r;
 }
-function pctsB(r){ r.pctRec=r.gas?-r.rec/r.gas:0; if(r.total!=null)r.pctArea=r.total?r.area/r.total:0; }
+function pctsB(r){ if(r.refIng!=null){ r.pctIng=r.refIng?-r.gas/r.refIng:0; r.porU=r.refU?-r.gas/r.refU:0; return; } r.pctRec=r.gas?-r.rec/r.gas:0; if(r.total!=null)r.pctArea=r.total?r.area/r.total:0; }
 export function columnsB(kind,st){
   const cols=[];
   for(let c=0;c<13;c++){ const m={};
@@ -44,6 +46,11 @@ export function rowsB(k){
     if(NEG_B[k]) return [
       ['','Marketing de '+NEG_B[k],'sec'],
       ['gas','(−) Gastos de marketing','in',null,null,{m:'gas',note:'Monto del mes en US$; siempre resta, sin recobro'}],
+      ['','Referencia del negocio · para guiarse (no se edita)','sec'],
+      ...(k==='semi'?[['refU','Unidades vendidas','c',null,null,{ind:1,int:1,src:'FU-004-S'}]]:k==='posv'?[['refU','Pasos vehiculares (Taller)','c',null,null,{ind:1,int:1,src:'FU-002'}]]:[]),
+      ['refIng', k==='fin'?'Ingresos de intermediación financiera (créditos, seguros y fondos)':k==='acc'?'Ingresos por venta de accesorios':k==='semi'?'Ingresos de Seminuevos (venta de unidades y alquileres)':'Ingresos de Posventa (Repuestos + Taller + PyP)','c',null,null,{ind:1,src:k==='fin'||k==='acc'?'FU-001-A':k==='semi'?'FU-004-S':'FU-002'}],
+      ['pctIng','Gasto de marketing sobre los ingresos','p'],
+      ...(k==='semi'||k==='posv'?[['porU',k==='semi'?'Gasto de marketing por unidad vendida (US$)':'Gasto de marketing por paso vehicular (US$)','c',null,null,{ind:1,dec:2}]]:[]),
       ['','Enlace','sec'],
       ['eGas', k==='fin'?'→ FU-001-A · consolidado de la sede · marketing de financiamiento':k==='acc'?'→ FU-001-A · consolidado de la sede · marketing de accesorios':k==='semi'?'→ FU-004-S · marketing (FU-001-B)':'→ FU-002 · marketing (FU-001-B), repartido entre Repuestos, Taller y PyP por facturación','c',null,null,{ind:1,link:1}]
     ];
