@@ -22,6 +22,7 @@ export const IN002=[
   ['gasPv','Gasolina · posventa','tienda',39],
   ['alq','Alquileres','alqG',40],
   ['publi','Publicidad','mkt',41],
+  ['mktB','Marketing de Posventa (FU-001-B)','mkt',null,'Lo carga Marketing por sede y marca; se reparte entre Repuestos, Taller y PyP por facturación'],
   ['gBanc','Gastos bancarios','fin',42],['interes','Intereses de préstamos','fin',43],
   ['impLeg','Impuestos y gastos legales directos','imp',44],
   ['viajes','Gastos de viaje','repr',48],['gasViaje','Gasolina · viajes de administración','repr',49],['repres','Gastos de representación','repr',50],

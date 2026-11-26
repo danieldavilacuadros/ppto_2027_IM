@@ -6,8 +6,12 @@ export const XB={ // valores del Excel FU-001-B (CUSCO · Hyundai; total = suma 
  total:{T:[],P:{tc:3.4,hc:3.0,sueldo:-882.352941176,bono:0.1,lab:0.4,equipo:-55.0,agencias:-1500.0,software:-400.0,otros:-100.0,mob:-50.0,agua:-40.0},M:{viajes:[-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0,-300.0],atenc:[-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0,-100.0]},S:{gas:[-175000.0,-154000.0,-168000.0,-182000.0,-175000.0,-161000.0,-189000.0,-196000.0,-175000.0,-182000.0,-210000.0,-224000.0,-168000.0],rec:[85750.0,77000.0,84000.0,91000.0,87500.0,80500.0,94500.0,98000.0,87500.0,91000.0,105000.0,112000.0,80500.0],kit:Array(13).fill(0)}}
 };
 
+// Marketing de otros negocios: solo gasto, mes a mes (siempre resta, aunque se escriba en positivo)
+export const NEG_B={fin:'financiamiento (intermediación)',acc:'accesorios',semi:'Seminuevos',posv:'Posventa'};
+Object.keys(NEG_B).forEach(k=>{ XB[k]={P:{},M:{gas:Array(13).fill(0)}}; });
 export function computeB(kind,P,m){
   const r={};
+  if(NEG_B[kind]){ r.gas=-Math.abs(Number(m.gas)||0); r.eGas=r.gas; return r; }
   // kit de bienvenida: siempre es gasto (se acepta escrito en positivo o negativo); no entra al % de recobro
   if(kind==='marca'){ r.gas=m.gas; r.rec=m.rec; r.kit=-Math.abs(Number(m.kit)||0); }
   else { r.gas=m.s_gas; r.rec=m.s_rec; r.kit=Number(m.s_kit)||0; }
@@ -37,6 +41,12 @@ export function columnsB(kind,st){
 }
 
 export function rowsB(k){
+    if(NEG_B[k]) return [
+      ['','Marketing de '+NEG_B[k],'sec'],
+      ['gas','(−) Gastos de marketing','in',null,null,{m:'gas',note:'Monto del mes en US$; siempre resta, sin recobro'}],
+      ['','Enlace','sec'],
+      ['eGas', k==='fin'?'→ FU-001-A · consolidado de la sede · marketing de financiamiento':k==='acc'?'→ FU-001-A · consolidado de la sede · marketing de accesorios':k==='semi'?'→ FU-004-S · marketing (FU-001-B)':'→ FU-002 · marketing (FU-001-B), repartido entre Repuestos, Taller y PyP por facturación','c',null,null,{ind:1,link:1}]
+    ];
     if(k==='marca') return [
       ['','Marketing de la marca','sec'],
       ['gas','(−) Gastos de marketing','in',8,null,{m:'gas',note:'Plan de medios, eventos, activaciones y material de la marca en la sede'}],

@@ -39,7 +39,9 @@ export function computeA(kind,P,m,ife,c){
     r.comAs=P.comAs*(r.mb-(r.accP+r.accN));
     r.lab=(r.comVend+r.sueldo+r.comAs)*P.lab;
     r.personal=r.comVend+r.sueldo+r.comAs+r.lab;
-    r.inst=P.inst*(r.nGps+r.nGlp); r.mkt=P.mkt; r.otros=P.otros; r.oper=r.inst+r.mkt+r.otros;
+    r.inst=P.inst*(r.nGps+r.nGlp); r.mkt=P.mkt; r.otros=P.otros;
+    r.mktF=Number(m.mktF)||0; r.mktA=Number(m.mktA)||0; // marketing de financiamiento y de accesorios (FU-001-B)
+    r.oper=r.inst+r.mkt+r.mktF+r.mktA+r.otros;
     r.rep=(c===12&&P.repH!=null)?P.repH:P.rep; r.agua=(c===12&&P.aguaH!=null)?P.aguaH:P.agua; r.tienda=r.rep+r.agua;
     r.viajes=m.viajes; r.atenc=m.atenc; r.repr=r.viajes+r.atenc;
     r.gastos=r.personal+r.oper+r.tienda+r.repr;
@@ -123,6 +125,8 @@ export function rowsA(k){
         ['oper','Gestión de operación','g',61],
         ['inst','Instalación y logística de GPS y GLP','c',62,{k:'inst',f:'num',e:1,note:'Por unidad equipada con GPS o GLP'},{ind:1}],
         ['mkt','Marketing','c',63,{k:'mkt',f:'num',e:1,note:'Monto mensual; debería venir de FU-001-B'},{ind:1}],
+        ...(S?[['mktF','Marketing de financiamiento','c',null,null,{ind:1,src:'FU-001-B',note:'Σ marcas de la sede en Marketing › Financiamiento'}],
+              ['mktA','Marketing de accesorios','c',null,null,{ind:1,src:'FU-001-B',note:'Σ marcas de la sede en Marketing › Accesorios'}]]:[]),
         ['otros','Otros, imprevistos','c',64,{k:'otros',f:'num',e:1,note:'Monto mensual'},{ind:1}],
         ['tienda','Gestión de tienda','g',67],
         ['rep','Reparación y mantenimiento de local','c',68,{k:'rep',f:'num',e:1,note:S?'Bolsa mensual de la sede':'El Corporativo no tiene local: queda en 0'},{ind:1}],

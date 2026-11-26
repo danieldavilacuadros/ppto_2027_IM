@@ -1,6 +1,6 @@
 // Resumen para gerencia general: arma el presupuesto de toda la empresa con los mismos motores de los formatos.
 // Vistas: por negocio (→ sede → marca), por sede (→ marca) y por marca (→ sede). Columnas de 13 posiciones: 12 meses y el año.
-import { FORMATOS, enlacesHacia001, sumaMarcasA, sumaMarcasB, baseNacionalA, type Col, type Datos } from '../formatos/registro'
+import { FORMATOS, enlacesHacia001, sumaMarcasA, sumaMarcasB, baseNacionalA, gasMktB, mktIfeSede, mktPosvSub, type Col, type Datos, type HojaFila } from '../formatos/registro'
 import { columnsA, lineaA } from '../formatos/fu001a.js'
 import { XU, GS, computeSede, gastosDesdeHistorico } from '../formatos/fu001sede.js'
 import { XS, computeS } from '../formatos/fu004s.js'
@@ -71,6 +71,7 @@ export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: st
   ordenSedes: string[], ordenMarcas: string[], ife: boolean): Base {
   const avisos: string[] = []
   const por = (f: string, h: string) => hojas.filter((x) => x.formato === f && x.hoja === h)
+  const hojasB = hojas.filter((x) => x.formato === 'FU-001-B' && ['fin', 'acc', 'semi', 'posv'].includes(x.hoja)) as HojaFila[]
   const mapa = (f: string, h: string) => new Map(por(f, h).map((x) => [`${x.sede}|${x.alcance}`, x.datos]))
   const U = mapa('FU-001', 'marca'), Us = new Map(por('FU-001', 'sede').map((x) => [x.sede, x.datos]))
   const A = mapa('FU-001-A', 'marca'), As = new Map(por('FU-001-A', 'sede').map((x) => [x.sede, x.datos]))
@@ -102,6 +103,7 @@ export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: st
     if (conA.length) {
       aDatos = completar(F1.ejemplo('sede'), As.get(s))
       aDatos.S = sumaMarcasA(conA.map((x) => x.aDatos!), ife)
+      Object.assign(aDatos.M, mktIfeSede(hojasB, s)) // marketing de financiamiento y de accesorios (FU-001-B)
       aSede = F1.calcular('sede', aDatos, ife)
       if (!As.has(s)) avisos.push(`${s}: los gastos propios de IF&E son de ejemplo (la sede aún no guarda su consolidado de IF&E).`)
     }
@@ -153,7 +155,9 @@ export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: st
   const semiG = new Map(por('FU-004-S', 'sede').map((x) => [x.sede, x.datos]))
   for (const sd of (FORMATOS.find((f) => f.id === 'FU-004-S')?.sedes ?? [])) {
     if (!semiG.has(sd)) avisos.push(`Seminuevos ${sd}: aún no se guarda la hoja; se muestran los valores del Excel de referencia.`)
-    semi.set(sd, computeS(completar(copia(XS as Datos), semiG.get(sd))) as unknown as Col[])
+    const ds = completar(copia(XS as Datos), semiG.get(sd))
+    ds.M = { ...ds.M, mktB: gasMktB(hojasB.find((x) => x.hoja === 'semi' && x.sede === sd)?.datos) }
+    semi.set(sd, computeS(ds) as unknown as Col[])
   }
 
   // ── piezas
@@ -208,8 +212,14 @@ export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: st
     if (sc) piezas.push({ sede: x.sede, marca: null, negocio: 'semi', vol: de(sc, 'u'), fact: de(sc, 'fact'), mb: de(sc, 'mb3'), mc: de(sc, 'mc'), gs: de(sc, 'gsede') })
   }
   // Posventa (FU-002): una hoja por sede × marca en cada subnegocio; sus gastos indirectos van como gastos de sede del negocio
-  for (const x of por('FU-002', 'rep').concat(por('FU-002', 'taller'), por('FU-002', 'pyp'))) {
-    const c = compute002(completar(copia(X002 as Datos), x.datos)) as unknown as Col[]
+  const subsPv = por('FU-002', 'rep').concat(por('FU-002', 'taller'), por('FU-002', 'pyp'))
+  for (const x of subsPv) {
+    // marketing de Posventa de la marca (FU-001-B), repartido entre Repuestos, Taller y PyP por facturación
+    const dpv = completar(copia(X002 as Datos), x.datos)
+    const gas = gasMktB(hojasB.find((h) => h.hoja === 'posv' && h.sede === x.sede && h.alcance === x.alcance)?.datos)
+    const facts = subsPv.filter((y) => y.sede === x.sede && y.alcance === x.alcance).map((y) => (y.datos?.M?.fact ?? []) as number[])
+    dpv.M = { ...dpv.M, mktB: mktPosvSub(gas, (dpv.M.fact ?? []) as number[], facts) }
+    const c = compute002(dpv) as unknown as Col[]
     piezas.push({ sede: x.sede, marca: x.alcance === '*' ? null : x.alcance, sub: x.hoja, negocio: 'posv',
       vol: de(c, 'pasos'), fact: de(c, 'fact'), mb: de(c, 'mb3'), mc: de(c, 'mc'), gs: de(c, 'ind') })
   }

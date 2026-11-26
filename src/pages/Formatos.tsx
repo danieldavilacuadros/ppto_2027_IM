@@ -6,7 +6,7 @@ import Hoja, { entero, money } from '../components/Hoja'
 import { VerComoSelector } from '../components/VerComo'
 import TablaPersonal, { type CostoPlan } from '../components/TablaPersonal'
 import { costoPlan } from '../formatos/fu001a.js'
-import { FORMATOS, baseNacionalA, enlacesHacia001, sumaMarcasA, sumaMarcasB, totalLineaA, ventaMarcasA, type Col, type Datos, type FormatoDef, type Puesto } from '../formatos/registro'
+import { FORMATOS, baseNacionalA, enlacesHacia001, gasMktB, mktIfeSede, mktPosvSub, sumaMarcasA, sumaMarcasB, totalLineaA, ventaMarcasA, type Col, type Datos, type FormatoDef, type HojaFila, type Puesto } from '../formatos/registro'
 import { filas001DesdeHistorico, promedioMensual } from '../formatos/historico'
 import { GS, gastosDesdeHistorico, histSede } from '../formatos/fu001sede.js'
 
@@ -43,11 +43,11 @@ export default function Formatos() {
     if (!cat || !perm.listo) return null
     const L = fmt.linea
     if (hoja.alcance === 'marca') {
-      const sedes = cat.sedes.filter((s) => perm.marcasDeSede(s, cat.marcas).some((m) => perm.ver(L, s, m)))
+      const sedes = cat.sedes.filter((s) => (!hoja.sedes || hoja.sedes.includes(s)) && perm.marcasDeSede(s, cat.marcas).some((m) => perm.ver(L, s, m)))
       const marcasPor = (s: string) => perm.marcasDeSede(s, cat.marcas).filter((m) => perm.ver(L, s, m))
       return { sedes, marcasPor }
     }
-    if (hoja.alcance === 'sede') return { sedes: cat.sedes.filter((s) => (!fmt.sedes || fmt.sedes.includes(s)) && perm.ver(L, s, '*')), marcasPor: () => [] as string[] }
+    if (hoja.alcance === 'sede') return { sedes: cat.sedes.filter((s) => (!fmt.sedes || fmt.sedes.includes(s)) && (!hoja.sedes || hoja.sedes.includes(s)) && perm.ver(L, s, '*')), marcasPor: () => [] as string[] }
     return { sedes: perm.ver(L, '*', hoja.alcance) ? ['*'] : [], marcasPor: () => [] as string[] }
   }, [cat, perm, fmt, hoja])
 
@@ -94,6 +94,13 @@ export default function Formatos() {
     const base = fmt.ejemplo(hoja.id)
     const d = completar(base, (data?.datos as Partial<Datos>) ?? null)
     let enl: Record<string, number[]> = {}, nt = ''
+    // marketing de otros negocios que carga FU-001-B (solo gasto)
+    const hojasMktB = async (hs: string[], s?: string): Promise<HojaFila[]> => {
+      let q = sb().from('hojas').select('hoja, sede, alcance, datos').eq('formato', 'FU-001-B').eq('anio', ANIO).in('hoja', hs)
+      if (s) q = q.eq('sede', s)
+      const { data: hb } = await q
+      return (hb ?? []) as HojaFila[]
+    }
     let hs26: { col: Col; meses: number; corte: string } | null = null
     let fuentesCarga: { a: Datos | null; b: Datos | null } | null = null
     if (fmt.id === 'FU-001' && hoja.alcance === 'marca') {
@@ -146,6 +153,7 @@ export default function Formatos() {
       if (ife && (sA || aM.size)) {
         const dA = completar(FORMATOS[1].ejemplo('sede'), (sA?.datos as Partial<Datos>) ?? null)
         if (aM.size) dA.S = sumaMarcasA([...aM.values()], ife)
+        Object.assign(dA.M, mktIfeSede(await hojasMktB(['fin', 'acc'], sedeOk), sedeOk))
         d.IG = FORMATOS[1].calcular('sede', dA, true).slice(0, 12).map((c) => c.gastos || 0)
         notaIfe = sA ? ' · IF&E: consolidado de la sede guardado' : ' · IF&E: gastos de ejemplo (la sede aún no guarda su consolidado de IF&E)'
       }
@@ -186,6 +194,7 @@ export default function Formatos() {
       }
       const lista = (hs ?? []).map((h) => ({ marca: h.alcance as string, datos: conUnidades(h.alcance as string, completar(FORMATOS[1].ejemplo('marca'), h.datos as Partial<Datos>)) }))
       d.V = ventaMarcasA(lista, ife)
+      enl = mktIfeSede(await hojasMktB(['fin', 'acc'], sedeOk), sedeOk)
       if (hs && hs.length) { d.S = sumaMarcasA(lista.map((x) => x.datos), ife); nt = `Parte comercial: suma de ${hs.length} hoja${hs.length === 1 ? '' : 's'} de marca guardada${hs.length === 1 ? '' : 's'}` }
       else nt = 'Parte comercial: valores de ejemplo (aún no hay hojas de marca guardadas en esta sede)'
     } else if (fmt.id === 'FU-001-A' && (hoja.id === 'total' || hoja.id === 'linea')) {
@@ -208,10 +217,12 @@ export default function Formatos() {
       const sedesCon = [...new Set(marcas.map((m) => m.sede))].sort((a, b) => orden.indexOf(a) - orden.indexOf(b))
       const guardadaSede = new Map(filasA.filter((x) => x.hoja === 'sede').map((x) => [x.sede as string, x.datos as Partial<Datos>]))
       const sinGastos: string[] = []
+      const hbIfe = await hojasMktB(['fin', 'acc'])
       const sedes = sedesCon.map((s) => {
         const ds = completar(FORMATOS[1].ejemplo('sede'), guardadaSede.get(s) ?? null)
         if (!guardadaSede.has(s)) sinGastos.push(s)
         ds.S = sumaMarcasA(marcas.filter((m) => m.sede === s).map((m) => m.datos), ife)
+        Object.assign(ds.M, mktIfeSede(hbIfe, s))
         return { sede: s, datos: ds }
       })
       const fc = filasA.find((x) => x.hoja === 'corp')
@@ -227,6 +238,18 @@ export default function Formatos() {
         d.B = baseNacionalA(sedes, corp, marcas, ife)
         nt = `Base nacional: ${base}${ejGastos}`
       }
+    } else if (fmt.id === 'FU-004-S') {
+      const hb = await hojasMktB(['semi'], sedeOk)
+      enl = { mktB: gasMktB(hb[0]?.datos) }
+    } else if (fmt.id === 'FU-002' && hoja.alcance === 'marca') {
+      // marketing de Posventa de la marca (FU-001-B), repartido entre Repuestos, Taller y PyP por su facturación
+      const [hb, { data: subs }] = await Promise.all([
+        hojasMktB(['posv'], sedeOk),
+        sb().from('hojas').select('hoja, datos').match({ formato: 'FU-002', sede: sedeOk, alcance: marcaOk, anio: ANIO }),
+      ])
+      const gas = gasMktB(hb.find((x) => x.alcance === marcaOk)?.datos)
+      const facts = ['rep', 'taller', 'pyp'].map((h) => h === hoja.id ? (d.M.fact ?? []) : (((subs ?? []).find((x) => x.hoja === h)?.datos as Partial<Datos> | undefined)?.M?.fact ?? []))
+      enl = { mktB: mktPosvSub(gas, d.M.fact ?? [], facts) }
     } else if (fmt.id === 'FU-001-B' && hoja.id === 'total') {
       const { data: hs } = await sb().from('hojas').select('datos').match({ formato: 'FU-001-B', hoja: 'marca', anio: ANIO })
       if (hs && hs.length) { d.S = sumaMarcasB(hs.map((h) => completar(FORMATOS[2].ejemplo('marca'), h.datos as Partial<Datos>))); nt = `Marketing de marcas: suma de ${hs.length} hoja${hs.length === 1 ? '' : 's'} guardada${hs.length === 1 ? '' : 's'}` }

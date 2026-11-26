@@ -36,7 +36,7 @@ function linea(P,m){
   r.hcT=P.tasKpi?u*P.tasF/P.tasKpi:0; r.sueldosT=P.sueldoT*r.hcT; r.comT=P.comT*r.mb2;
   r.lab=(r.sueldosV+r.comV+r.sueldosT+r.comT)*P.lab; r.eqs=P.equipoHC*(r.hcV+r.hcT);
   r.personal=r.sueldosV+r.comV+r.sueldosT+r.comT+r.lab+r.eqs;
-  r.mktG=P.mkt*r.mb1; r.mkt=r.mktG;
+  r.mktG=P.mkt*r.mb1; r.mktB=Number(m.mktB)||0; r.mkt=r.mktG+r.mktB;
   r.lav=P.lavado*u; r.repl=P.repLocal*u; r.agua=P.agua; r.segu=P.seguridad; r.limp=P.limpieza;
   r.tienda=r.lav+r.repl+r.agua+r.segu+r.limp;
   r.int=-P.tasa/12*u*P.stockF*P.ticket*P.sobre; r.fin=r.int;
@@ -98,6 +98,7 @@ export function rowsS(){
     ['eqs','Laptops, equipos, licencias y celular','c',null,{k:'equipoHC',f:'num',e:1,note:'US$ por persona al mes × (vendedores + tasadores)'},{ind:1}],
     ['mkt','Marketing','g'],
     ['mktG','(−) Gastos de marketing','c',null,{k:'mkt',f:'pct',e:1,note:'% del MB 1'},{ind:1}],
+    ['mktB','(−) Marketing de Seminuevos','c',null,null,{ind:1,src:'FU-001-B',note:'Lo carga Marketing (FU-001-B › Seminuevos)'}],
     ['tienda','Gestión de tienda','g'],
     ['lav','Lavado de showroom','c',null,{k:'lavado',f:'num',e:1,note:'US$ por unidad'},{ind:1}],
     ['repl','Reparación y mantenimiento de local','c',null,{k:'repLocal',f:'num',e:1,note:'Bolsa US$ por unidad'},{ind:1}],

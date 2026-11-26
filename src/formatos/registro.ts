@@ -39,7 +39,7 @@ export type Fila = [string, string, string, number?, (Sup | null)?, Extra?]
 
 /** Alcance de una hoja: por sede × marca, consolidado de sede, Canal Corporativo, gastos de línea o total sin sede. */
 export type Alcance = 'marca' | 'sede' | 'corp' | 'total' | 'linea'
-export interface HojaDef { id: string; nombre: string; alcance: Alcance; descripcion: string }
+export interface HojaDef { id: string; nombre: string; alcance: Alcance; descripcion: string; /** sedes donde existe la hoja (por defecto, las del formato) */ sedes?: string[] }
 export interface FormatoDef {
   id: 'FU-001' | 'FU-001-A' | 'FU-001-B' | 'FU-002' | 'FU-004-S' | 'FU-006-L'
   nombre: string
@@ -135,6 +135,10 @@ const FU001B: FormatoDef = {
   hojas: [
     { id: 'marca', nombre: 'Por sede × marca', alcance: 'marca', descripcion: 'Gasto de marketing y recobro de la marca, mes a mes. Pasan a las filas 55 y 56 de FU-001 de esa sede y marca.' },
     { id: 'total', nombre: 'Marketing total', alcance: 'total', descripcion: 'Suma el neto de todas las sedes y marcas y carga una sola vez los gastos del área de marketing, que van a FU-003. El personal del área se carga en la tabla de personal de abajo.' },
+    { id: 'fin', nombre: 'Financiamiento', alcance: 'marca', descripcion: 'Gasto de marketing de intermediación financiera por sede y marca, mes a mes. Se suma a los gastos del consolidado de IF&E de la sede (fila «Marketing de financiamiento»).' },
+    { id: 'acc', nombre: 'Accesorios', alcance: 'marca', descripcion: 'Gasto de marketing de accesorios por sede y marca, mes a mes. Se suma a los gastos del consolidado de IF&E de la sede (fila «Marketing de accesorios»).' },
+    { id: 'semi', nombre: 'Seminuevos', alcance: 'sede', sedes: ['AREQUIPA'], descripcion: 'Gasto de marketing de Seminuevos, mes a mes. Se suma al marketing de la hoja de Seminuevos (FU-004-S), aparte del % del MB 1.' },
+    { id: 'posv', nombre: 'Posventa', alcance: 'marca', sedes: ['AREQUIPA', 'CUSCO', 'ICA', 'JULIACA'], descripcion: 'Gasto de marketing de Posventa por sede y marca (Repuestos, Taller y PyP juntos), mes a mes. Se reparte entre los tres según su facturación y se suma a su marketing (FU-002), aparte de «Publicidad».' },
   ],
   ejemplo: (h) => copia((XB as Record<string, Datos>)[h]),
   filas: (h) => rowsB(h) as Fila[],
@@ -142,7 +146,7 @@ const FU001B: FormatoDef = {
   tablaPersonal: (h) => h === 'total',
   nivel: ([id, , t, , , ex = {}]) => (t === 's' || ['gas', 'rec', 'neto', 'area', 'total'].includes(id)) ? 1 : (t === 'g' || ex.link) ? 2 : 3,
   pct: ([id], c) => c[id],
-  kpis: (h) => h === 'marca'
+  kpis: (h) => ['fin', 'acc', 'semi', 'posv'].includes(h) ? [['Gasto de marketing 2027', 'gas', 'money']] : h === 'marca'
     ? [['Gasto de marketing 2027', 'gas', 'money'], ['Recobro de marca 2027', 'rec', 'money'], ['Neto de la marca 2027', 'neto', 'money']]
     : [['Neto de las marcas', 'neto', 'money'], ['Gastos del área', 'area', 'money'], ['Marketing total 2027', 'total', 'money']],
 }
@@ -247,4 +251,24 @@ export function totalLineaA(sedes: Sedes, corp: Datos | null, marcas: Marcas, if
 /** Facturación de vehículos de cada marca (12 meses), para repartir la tabla de personal de la sede. */
 export function ventaMarcasA(marcas: Marcas, ife: boolean) {
   return marcas.map((m) => ({ marca: m.marca, venta: (columnsA('marca', m.datos, ife) as unknown as Col[]).slice(0, 12).map((c) => c.venta || 0) }))
+}
+
+// ───────── Marketing de otros negocios (FU-001-B) → IF&E, Seminuevos y Posventa ─────────
+export type HojaFila = { hoja: string; sede: string; alcance: string; datos: Partial<Datos> | null }
+/** Gasto mensual (13 posiciones, histórico en 0) de una hoja de marketing de negocio; siempre negativo. */
+export function gasMktB(d: Partial<Datos> | null | undefined): number[] {
+  const g = (d?.M?.gas ?? []) as number[]
+  return [...Array.from({ length: 12 }, (_, i) => -Math.abs(Number(g[i]) || 0)), 0]
+}
+/** IF&E de la sede: marketing de financiamiento y de accesorios (Σ marcas de la sede). */
+export function mktIfeSede(hojasB: HojaFila[], sede: string): { mktF: number[]; mktA: number[] } {
+  const s = (h: string) => SUMA13(hojasB.filter((x) => x.hoja === h && x.sede === sede).map((x) => gasMktB(x.datos)))
+  return { mktF: s('fin'), mktA: s('acc') }
+}
+/** Posventa: marketing de la marca repartido al subnegocio por su facturación del mes entre Repuestos, Taller y PyP. */
+export function mktPosvSub(gas: number[], factSub: number[], factTodos: number[][]): number[] {
+  return [...Array.from({ length: 12 }, (_, i) => {
+    const t = factTodos.reduce((a, f) => a + (Number(f[i]) || 0), 0)
+    return t ? gas[i] * (Number(factSub[i]) || 0) / t : gas[i] / factTodos.length
+  }), 0]
 }
