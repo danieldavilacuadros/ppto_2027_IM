@@ -1,6 +1,7 @@
 // FU-001 · Consolidado por sede de Unidades: Σ marcas de la sede + IF&E de la sede (check Integrado)
 // + gastos propios de la sede (personal de sede, alquileres, servicios, gestión, impuestos, seguros, honorarios)
-// = utilidad de la sede; con el reparto de los gastos a cada marca por facturación de vehículos (criterio provisional).
+// = utilidad de la sede; con el reparto de los gastos a cada marca: los de la sede por facturación de vehículos y los de
+// IF&E según el margen de IF&E de cada marca (criterios provisionales, iguales a los del Resumen).
 /* eslint-disable */
 import { costoPlan } from './personal.js';
 
@@ -30,7 +31,7 @@ function totales(r){
   r.cneg=(r.mc||0)+(r.ifeG||0); r.usede=r.cneg+r.gsede;
 }
 /**
- * st: {P:{tc,lab}, M:{alq:[13]…}, T:[puestos]} · marcas: [{marca, cols (14: 12 meses, año, histórico)}]
+ * st: {P:{tc,lab}, M:{alq:[13]…}, T:[puestos]} · marcas: [{marca, cols (14: 12 meses, año, histórico), ifeMb (12: margen de IF&E de la marca)}]
  * ifeG: gastos del consolidado de IF&E de la sede (12 meses, negativos; 0 con check Independiente)
  * Devuelve [12 meses, año, histórico].
  */
@@ -42,16 +43,21 @@ export function computeSede(st,marcas,ifeG){
     r.ifeG=(ifeG&&ifeG[i])||0; r.plan=pc.tot[i];
     GS.forEach(([id])=>r[id]=Number(st.M[id]&&st.M[id][i])||0);
     totales(r);
-    // reparto: cada puesto por su criterio; los demás gastos de la sede y el IF&E de la sede por facturación
-    const vt=marcas.reduce((a,m)=>a+(m.cols[i].venta||0),0), resto=r.gsede-r.plan+r.ifeG;
-    marcas.forEach(m=>{ const sh=vt?(m.cols[i].venta||0)/vt:0; let pm=0;
+    // reparto: cada puesto por su criterio; los demás gastos de la sede por facturación de vehículos;
+    // el IF&E de la sede según el margen de IF&E de cada marca (si la sede no tiene margen ese mes, por facturación)
+    const vt=marcas.reduce((a,m)=>a+(m.cols[i].venta||0),0), resto=r.gsede-r.plan;
+    const mbI=m=>Math.max(0,Number(m.ifeMb&&m.ifeMb[i])||0), mt=marcas.reduce((a,m)=>a+mbI(m),0);
+    marcas.forEach(m=>{ const sh=vt?(m.cols[i].venta||0)/vt:0, shI=mt>0?mbI(m)/mt:sh; let pm=0;
       (st.T||[]).forEach((f,j)=>{ const fr=pc.filas[j]; if(!fr) return; pm+=fr.tot[i]*(f.rep&&typeof f.rep==='object'?(Number(f.rep[m.marca])||0)/100:sh); });
-      r['part@'+m.marca]=sh; r['asig@'+m.marca]=resto*sh+pm; r['um@'+m.marca]=(m.cols[i].mc||0)+r['asig@'+m.marca]; });
+      r['part@'+m.marca]=sh; r['partI@'+m.marca]=shI; r['asigI@'+m.marca]=r.ifeG*shI;
+      r['asig@'+m.marca]=resto*sh+pm+r['asigI@'+m.marca]; r['um@'+m.marca]=(m.cols[i].mc||0)+r['asig@'+m.marca]; });
     out.push(r);
   }
-  const yr={}; for(const k in out[0]) if(!k.startsWith('part@')) yr[k]=out.reduce((a,r)=>a+(r[k]||0),0);
+  const yr={}; for(const k in out[0]) if(!k.startsWith('part@')&&!k.startsWith('partI@')) yr[k]=out.reduce((a,r)=>a+(r[k]||0),0);
   const vy=marcas.reduce((a,m)=>a+suma(m.cols.slice(0,12).map(c=>c.venta||0)),0);
-  marcas.forEach(m=>{ yr['part@'+m.marca]=vy?suma(m.cols.slice(0,12).map(c=>c.venta||0))/vy:0; });
+  const iy=marcas.reduce((a,m)=>a+suma(out.map(r=>r['asigI@'+m.marca]||0)),0);
+  marcas.forEach(m=>{ yr['part@'+m.marca]=vy?suma(m.cols.slice(0,12).map(c=>c.venta||0))/vy:0;
+    yr['partI@'+m.marca]=iy?suma(out.map(r=>r['asigI@'+m.marca]||0))/iy:yr['part@'+m.marca]; });
   // histórico de ejemplo: suma de la columna histórica de cada marca y la posición 12 de los gastos
   const h={}; COM.forEach(k=>h[k]=marcas.reduce((a,m)=>a+((m.cols[13]||{})[k]||0),0));
   GS.forEach(([id])=>h[id]=Number(st.M[id]&&st.M[id][12])||0); h.ifeG=0; h.plan=0; totales(h);
@@ -100,8 +106,9 @@ export function rowsSede(marcas){
   GRUPOS.forEach(([g,n])=>{ R.push([g,n,'g']);
     GS.filter(x=>x[2]===g).forEach(([id,lab,,acc])=>R.push([id,lab,'in',null,null,{ind:1,m:id,note:acc.length?'Histórico: '+acc.join(' + '):'Sin cuenta propia en el histórico'}])); });
   R.push(['gsede','Gastos de la sede','s',null,null,{cls:'gop'}],['usede','Utilidad de la sede','s',null,null,{cls:'mc'}],['usede','','p'],
-    ['','Reparto a las marcas · vista marca · por facturación de vehículos (criterio provisional)','sec']);
+    ['','Reparto a las marcas · gastos de sede por facturación de vehículos; IF&E por margen de IF&E (criterios provisionales)','sec']);
   marcas.forEach(m=>{ R.push(['part@'+m,'Participación en la facturación · '+m,'p',null,null,{part:1}]);
+    R.push(['partI@'+m,'Participación en el margen de IF&E · '+m,'p',null,null,{part:1,onlyInt:1}]);
     R.push(['asig@'+m,'Gastos de sede e IF&E asignados · '+m,'c',null,null,{ind:1}]);
     R.push(['um@'+m,'Utilidad de '+m+' en la sede','c',null,null,{ind:1,l2:1}]); });
   return R;

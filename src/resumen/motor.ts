@@ -114,7 +114,7 @@ export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: st
       } else avisos.push(`${s}: sin gastos de sede (no hay consolidado guardado ni histórico).`)
     }
     const ig = aSede ? aSede.slice(0, 12).map((c) => (ife ? c.gastos : c.mc) || 0) : []
-    const res = computeSede(st, marcas.map((x) => ({ marca: x.marca, cols: x.u })), ig) as unknown as Col[]
+    const res = computeSede(st, marcas.map((x) => ({ marca: x.marca, cols: x.u, ifeMb: x.a ? de(x.a, 'mb').slice(0, 12) : [] })), ig) as unknown as Col[]
     porSede.push({ sede: s, marcas, aSede, aDatos, res })
   }
 
@@ -179,12 +179,12 @@ export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: st
     const r = x.res
     // gastos de IF&E de la sede + su parte de los gastos de línea: en integrado van a Unidades, en independiente a IF&E
     const ifeCarga = sum(x.aSede ? de(x.aSede, 'gastos') : Z(), lineaDe(x.sede))
-    // gastos de la sede que le tocan a cada marca (sin la parte de IF&E que computeSede reparte junto);
+    // gastos de la sede que le tocan a cada marca (sin la parte de IF&E que computeSede reparte junto, por margen de IF&E);
     // si la tabla de personal no reparte el 100 % (porcentajes a mano), el saldo se reparte por facturación para que cuadre con la sede
     const gsM = new Map<string, Serie>(), saldo = Z()
     for (const m of x.marcas) {
       const g = Z()
-      for (let i = 0; i < 12; i++) g[i] = (Number(r[i]?.['asig@' + m.marca]) || 0) - (Number(r[i]?.ifeG) || 0) * (Number(r[i]?.['part@' + m.marca]) || 0)
+      for (let i = 0; i < 12; i++) g[i] = (Number(r[i]?.['asig@' + m.marca]) || 0) - (Number(r[i]?.['asigI@' + m.marca]) || 0)
       gsM.set(m.marca, g)
     }
     for (let i = 0; i < 12; i++) { saldo[i] = (Number(r[i]?.gsede) || 0) - x.marcas.reduce((a, m) => a + gsM.get(m.marca)![i], 0); saldo[12] += saldo[i] }

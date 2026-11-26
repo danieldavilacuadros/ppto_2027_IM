@@ -134,7 +134,10 @@ export default function Formatos() {
       const orden = cat?.marcas ?? []
       const lista = [...u001.entries()].map(([marca, du]) => {
         const dd: Datos = { ...du, M: { ...du.M, ...enlacesHacia001(aM.get(marca) ?? null, bM.get(marca) ?? null, ife) } }
-        return { marca, cols: FORMATOS[0].calcular('marca', dd, ife) }
+        const da = aM.get(marca)
+        // margen de IF&E de la marca (12 meses), para repartirle los gastos de IF&E de la sede
+        const ifeMb = da ? FORMATOS[1].calcular('marca', da, ife).slice(0, 12).map((c) => Number(c.mb) || 0) : []
+        return { marca, cols: FORMATOS[0].calcular('marca', dd, ife), ifeMb }
       }).sort((x, y) => orden.indexOf(x.marca) - orden.indexOf(y.marca))
       d.X = lista
       d.V = lista.map((m) => ({ marca: m.marca, venta: m.cols.slice(0, 12).map((c) => c.venta || 0) }))

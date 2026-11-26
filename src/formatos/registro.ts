@@ -22,7 +22,7 @@ export type Datos = {
   /** base nacional para la hoja de línea (no se guarda) */
   B?: BaseNac
   /** FU-001 sede: columnas de cada hoja de marca de la sede (no se guarda) */
-  X?: { marca: string; cols: Col[] }[]
+  X?: { marca: string; cols: Col[]; ifeMb?: number[] }[]
   /** FU-001 sede: gastos del consolidado de IF&E de la sede, 12 meses (no se guarda) */
   IG?: number[]
 }
@@ -81,7 +81,7 @@ const FU001: FormatoDef = {
   id: 'FU-001', nombre: 'Unidades', linea: 'unidades',
   hojas: [
     { id: 'marca', nombre: 'Por sede × marca', alcance: 'marca', descripcion: 'Una hoja por cada marca en cada sede. Solo se llenan las celdas amarillas.' },
-    { id: 'sede', nombre: 'Consolidado por sede', alcance: 'sede', descripcion: 'Lo llena el jefe de sede. Suma las hojas de marca de la sede; con el check Integrado resta los gastos de IF&E de la sede; abajo van los gastos propios de la sede (personal de sede, alquileres, servicios, gestión, impuestos, seguros y honorarios) hasta la utilidad de la sede. Los gastos se reparten a las marcas por su facturación de vehículos (criterio provisional). La depreciación va al esquema de empresa.' },
+    { id: 'sede', nombre: 'Consolidado por sede', alcance: 'sede', descripcion: 'Lo llena el jefe de sede. Suma las hojas de marca de la sede; con el check Integrado resta los gastos de IF&E de la sede; abajo van los gastos propios de la sede (personal de sede, alquileres, servicios, gestión, impuestos, seguros y honorarios) hasta la utilidad de la sede. Los gastos de la sede se reparten a las marcas por su facturación de vehículos y los de IF&E según el margen de IF&E de cada marca, igual que en el Resumen (criterios provisionales). La depreciación va al esquema de empresa.' },
   ],
   ejemplo: (h) => {
     if (h === 'sede') return copia(XU as Datos)
