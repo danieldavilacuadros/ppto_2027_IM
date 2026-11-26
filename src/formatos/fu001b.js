@@ -29,7 +29,7 @@ export function computeB(kind,P,m){
   } else { r.e55=r.gas; r.e56=r.rec; r.eKit=r.kit; r.eNet=r.neto; }
   pctsB(r); return r;
 }
-function pctsB(r){ if(r.refIng!=null){ r.pctIng=r.refIng?-r.gas/r.refIng:0; r.porU=r.refU?-r.gas/r.refU:0; return; } r.pctRec=r.gas?-r.rec/r.gas:0; if(r.total!=null)r.pctArea=r.total?r.area/r.total:0; }
+function pctsB(r){ if(r.refIng!=null){ r.pctIng=r.refIng&&r.gas?-r.gas/r.refIng:0; r.porU=r.refU&&r.gas?-r.gas/r.refU:0; return; } r.pctRec=r.gas?-r.rec/r.gas:0; if(r.total!=null)r.pctArea=r.total?r.area/r.total:0; }
 export function columnsB(kind,st){
   const cols=[];
   for(let c=0;c<13;c++){ const m={};
