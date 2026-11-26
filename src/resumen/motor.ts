@@ -53,6 +53,8 @@ export interface Pieza {
   sede: string | null
   marca: string | null
   negocio: 'unidades' | 'ife' | 'posv' | 'semi' | 'lub' | 'corp' | 'mkt'
+  /** Posventa: rep · taller · pyp */
+  sub?: string
   vol?: Serie
   fact?: Serie
   mb?: Serie
@@ -205,10 +207,11 @@ export function calcularBase(hojas: HojaBD[], histSede: Map<string, { cuenta: st
     const sc = semi.get(x.sede)
     if (sc) piezas.push({ sede: x.sede, marca: null, negocio: 'semi', vol: de(sc, 'u'), fact: de(sc, 'fact'), mb: de(sc, 'mb3'), mc: de(sc, 'mc'), gs: de(sc, 'gsede') })
   }
-  // Posventa (FU-002): una hoja por sede y subnegocio; sus gastos indirectos van como gastos de sede del negocio
+  // Posventa (FU-002): una hoja por sede × marca en cada subnegocio; sus gastos indirectos van como gastos de sede del negocio
   for (const x of por('FU-002', 'rep').concat(por('FU-002', 'taller'), por('FU-002', 'pyp'))) {
     const c = compute002(completar(copia(X002 as Datos), x.datos)) as unknown as Col[]
-    piezas.push({ sede: x.sede, marca: null, negocio: 'posv', vol: de(c, 'pasos'), fact: de(c, 'fact'), mb: de(c, 'mb3'), mc: de(c, 'mc'), gs: de(c, 'ind') })
+    piezas.push({ sede: x.sede, marca: x.alcance === '*' ? null : x.alcance, sub: x.hoja, negocio: 'posv',
+      vol: de(c, 'pasos'), fact: de(c, 'fact'), mb: de(c, 'mb3'), mc: de(c, 'mc'), gs: de(c, 'ind') })
   }
   if (!por('FU-002', 'taller').length) avisos.push('Posventa: aún no hay hojas cargadas.')
   // Lubricantes (FU-006-L): una hoja nacional; sus gastos propios (alquiler, depreciación, servicios, fianza) van como gastos de sede del negocio
@@ -261,9 +264,14 @@ export function agrupar(b: Base, f: Filtro): Resumen {
     ife ? 'Con IF&E integrado: su margen y sus gastos (los de la sede y su parte de los de línea), repartidos a cada marca según su margen de IF&E' : 'Sin IF&E (modo independiente)'))
   if (!ife && okNeg('ife')) negs.push(nodoNeg('ife', 'IF&E · intermediación financiera y equipamiento', de_('ife'), 'operaciones F&I',
     'Margen de IF&E con sus gastos de sede y su parte de los gastos de línea'))
-  if (okNeg('posv') && !conMarca) {
+  if (okNeg('posv')) {
     const ps = de_('posv')
-    negs.push(ps.length ? nodoNeg('posv', 'Posventa', ps, 'pasos vehiculares', 'Repuestos, Taller y PyP; sus gastos indirectos van como gastos de sede') : pend('posv', 'Posventa', 'pasos vehiculares'))
+    // Posventa → subnegocio (Repuestos, Taller, PyP) → sede → marca
+    const SUBN: [string, string][] = [['rep', 'Repuestos'], ['taller', 'Taller'], ['pyp', 'PyP']]
+    negs.push(ps.length ? { id: 'posv', nombre: 'Posventa', volTxt: 'pasos vehiculares', ...met(ps),
+      nota: 'Repuestos, Taller y PyP; sus gastos indirectos van como gastos de sede',
+      hijos: SUBN.filter(([k]) => ps.some((p) => p.sub === k)).map(([k, n]) => nodoNeg('posv|' + k, n, ps.filter((p) => p.sub === k), k === 'taller' ? 'pasos vehiculares' : '', '')) }
+      : pend('posv', 'Posventa', 'pasos vehiculares'))
   }
   if (okNeg('semi') && !conMarca) {
     const ps = de_('semi')
@@ -300,9 +308,14 @@ export function agrupar(b: Base, f: Filtro): Resumen {
     cneg: suma(ps, 'mc'), gsede: suma(ps, 'gs'), util: util(ps) })
   const sedesN: Nodo[] = sedesDe(sedePs).map((s) => {
     const ps = sedePs.filter((p) => p.sede === s)
-    const hijos = marcasDe(ps).map((m) => filaSede(`s|${s}|${m}`, m, ps.filter((p) => p.marca === m)))
+    const psU = ps.filter((p) => p.negocio !== 'posv')
+    const hijos = marcasDe(psU).map((m) => filaSede(`s|${s}|${m}`, m, psU.filter((p) => p.marca === m)))
     const ps2 = ps.filter((p) => p.negocio === 'semi'); if (ps2.length) hijos.push(filaSede(`s|${s}|semi`, 'Seminuevos', ps2))
-    const ps3 = ps.filter((p) => p.negocio === 'posv'); if (ps3.length) hijos.push(filaSede(`s|${s}|posv`, 'Posventa', ps3))
+    const ps3 = ps.filter((p) => p.negocio === 'posv')
+    if (ps3.length) hijos.push({ ...filaSede(`s|${s}|posv`, 'Posventa', ps3),
+      hijos: ([['rep', 'Repuestos'], ['taller', 'Taller'], ['pyp', 'PyP']] as const).filter(([k]) => ps3.some((p) => p.sub === k))
+        .map(([k, n]) => ({ ...filaSede(`s|${s}|posv|${k}`, n, ps3.filter((p) => p.sub === k)),
+          hijos: marcasDe(ps3.filter((p) => p.sub === k)).map((m) => filaSede(`s|${s}|posv|${k}|${m}`, m, ps3.filter((p) => p.sub === k && p.marca === m))) })) })
     return { ...filaSede('s|' + s, s, ps), hijos }
   })
   const totS: Nodo = { ...filaSede('s|tot', 'Total sedes', sedePs), tipo: 'sub' }

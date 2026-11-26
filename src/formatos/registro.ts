@@ -180,9 +180,9 @@ const FU006L: FormatoDef = {
 const FU002: FormatoDef = {
   id: 'FU-002', nombre: 'Posventa', linea: 'posventa', sedes: ['AREQUIPA', 'CUSCO', 'ICA', 'JULIACA'],
   hojas: [
-    { id: 'rep', nombre: 'Repuestos', alcance: 'sede', descripcion: 'Repuestos de la sede: facturación, costo y márgenes MB 1 a MB 3, gastos directos hasta el margen de contribución y gastos indirectos hasta el resultado operativo neto. Gastos en negativo.' },
-    { id: 'taller', nombre: 'Taller', alcance: 'sede', descripcion: 'Taller de la sede, sin planchado y pintura: pasos vehiculares, facturación, márgenes, gastos directos y gastos indirectos hasta el resultado operativo neto. Gastos en negativo.' },
-    { id: 'pyp', nombre: 'PyP', alcance: 'sede', descripcion: 'Planchado y pintura de la sede: facturación, márgenes, gastos directos y gastos indirectos hasta el resultado operativo neto. Gastos en negativo.' },
+    { id: 'rep', nombre: 'Repuestos', alcance: 'marca', descripcion: 'Repuestos de la marca en la sede: facturación, costo y márgenes MB 1 a MB 3, gastos directos hasta el margen de contribución y gastos indirectos hasta el resultado operativo neto. Gastos en negativo.' },
+    { id: 'taller', nombre: 'Taller', alcance: 'marca', descripcion: 'Taller de la marca en la sede, sin planchado y pintura: pasos vehiculares, facturación, márgenes, gastos directos y gastos indirectos hasta el resultado operativo neto. Gastos en negativo.' },
+    { id: 'pyp', nombre: 'PyP', alcance: 'marca', descripcion: 'Planchado y pintura de la marca en la sede: facturación, márgenes, gastos directos y gastos indirectos hasta el resultado operativo neto. Gastos en negativo.' },
   ],
   ejemplo: () => copia(X002 as Datos),
   filas: () => rows002() as Fila[],

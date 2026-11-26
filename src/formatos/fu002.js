@@ -1,4 +1,4 @@
-// Motor de FU-002 (Posventa): una hoja por sede y subnegocio (Repuestos, Taller sin PyP, PyP).
+// Motor de FU-002 (Posventa): una hoja por sede × marca en cada subnegocio (Repuestos, Taller sin PyP, PyP).
 // Base: «PPTO PV 2027 rev4», hoja PPTO TOT (26-nov-2026), reordenada como los demás formatos:
 // pasos vehiculares → facturación → MB 1 → bonos → MB 3 → gastos directos → MC → gastos indirectos → resultado operativo neto.
 // Montos en US$ (soles ÷ TC 3.4) y repartidos en 12 meses iguales; gastos y costo en negativo.
@@ -32,7 +32,7 @@ export const IN002=[
 const GRUPOS=[['pers','Cargas del personal'],['serv','Servicios de taller y unidades'],['hon','Honorarios y provisiones'],['tienda','Gestión de tienda'],
   ['alqG','Alquileres'],['mkt','Marketing'],['fin','Gastos financieros'],['imp','Impuestos y gastos legales'],['repr','Representación y viajes']];
 
-/** Hoja vacía (los valores reales se precargan por sede y subnegocio en la base) */
+/** Hoja vacía (los valores reales se precargan por sede, marca y subnegocio en la base) */
 export const X002={P:{tc:3.4},M:Object.fromEntries(IN002.map(([k])=>[k,Array(13).fill(0)]))};
 
 function linea(m){
